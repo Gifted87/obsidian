@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-obsidian: #020202;
+  --color-ether: #0a0a0a;
+  --color-glass: rgba(255, 255, 255, 0.03);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+}
+
+@layer base {
+  body {
+    @apply bg-obsidian text-gray-200 font-sans antialiased selection:bg-indigo-500/30 selection:text-white;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-glass backdrop-blur-2xl border border-glass-border rounded-xl;
+  }
+
+  .micro-label {
+    @apply font-mono text-[9px] uppercase tracking-[0.3em] text-gray-500 font-medium;
+  }
+
+  .serif-heading {
+    @apply font-serif italic text-white tracking-tight;
+  }
+
+  .markdown-body {
+    @apply text-gray-300 leading-relaxed font-sans text-sm space-y-4;
+  }
+
+  .markdown-body h1 { @apply text-2xl font-serif italic text-white mt-8 mb-4 border-b border-white/10 pb-2; }
+  .markdown-body h2 { @apply text-xl font-serif italic text-white mt-6 mb-3 border-b border-white/5 pb-1; }
+  .markdown-body h3 { @apply text-lg font-medium text-white mt-4 mb-2; }
+  .markdown-body p { @apply mb-4; }
+  .markdown-body ul { @apply list-disc list-inside mb-4 space-y-1; }
+  .markdown-body ol { @apply list-decimal list-inside mb-4 space-y-1; }
+  .markdown-body li { @apply text-gray-300; }
+  .markdown-body blockquote { @apply border-l-2 border-indigo-500/50 pl-4 italic text-gray-400 my-4; }
+  .markdown-body code { @apply bg-white/5 px-1.5 py-0.5 rounded font-mono text-[11px] text-indigo-300; }
+  .markdown-body pre { @apply bg-white/[0.02] border border-white/5 p-4 rounded-xl overflow-x-auto my-6 font-mono text-[12px] leading-relaxed; }
+  .markdown-body pre code { @apply bg-transparent p-0 text-gray-300; }
+  .markdown-body table { @apply w-full border-collapse my-6 text-[12px]; }
+  .markdown-body th { @apply border border-white/10 bg-white/5 p-2 text-left font-bold uppercase tracking-widest text-[10px] text-gray-400; }
+  .markdown-body td { @apply border border-white/10 p-2 text-gray-300; }
+  .markdown-body a { @apply text-indigo-400 hover:text-indigo-300 underline underline-offset-4 decoration-indigo-500/30 transition-colors; }
+  .markdown-body hr { @apply border-white/5 my-8; }
+  .markdown-body strong { @apply text-white font-semibold; }
+  .markdown-body em { @apply italic text-gray-100; }
+  .markdown-body img { @apply rounded-xl border border-white/10 my-6 max-w-full h-auto; }
+
+  /* MathJax/KaTeX specific overrides */
+  .katex-display { @apply my-6 overflow-x-auto overflow-y-hidden py-2; }
+  .katex { @apply text-indigo-300; }
+}
+
+/* Custom scrollbar for the Obsidian theme */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
