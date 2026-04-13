@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type, FunctionCallingConfigMode, Modality } from "@google/genai";
 
-const MODEL_NAME = "gemini-flash-lite-latest";
-const FLASH_MODEL = "gemini-flash-lite-latest";
-const CONTROLLER_MODEL = "gemini-flash-lite-latest";
+const MODEL_NAME = "gemini-3.1-pro-preview";
+const FLASH_MODEL = "gemini-3.1-pro-preview";
+const CONTROLLER_MODEL = "gemini-3.1-pro-preview";
 const TTS_MODEL = "gemini-2.5-flash-preview-tts";
 
 export enum Dimension {
@@ -18,14 +18,14 @@ export enum Dimension {
 }
 
 export const DIMENSIONS_INFO: Record<Dimension, string> = {
-  [Dimension.UNDERSTANDING]: "Establish semantic ground truth and define the intent of the question or topic.",
-  [Dimension.INQUIRY]: "Perform root cause analysis and foundational causal questioning.",
-  [Dimension.PROCEDURAL]: "Formulate methodology, strategy, and step-by-step implementation plans.",
-  [Dimension.WONDER]: "Model counterfactual possibilities and 'What-if' scenarios.",
+  [Dimension.UNDERSTANDING]: "Understand and define the intent of the question or topic, to understand something or some behavior or process. you muse ask questions to understand the user intent. examples: what does he really mean by {prompt}? what actually is the user asking for? what is the user trying to achieve? what is the user trying to solve?",
+  [Dimension.INQUIRY]: "find out why something is or acts like it does. to find out the facts, logic, evidence, philosophical, psychological and spiritual reasons why",
+  [Dimension.PROCEDURAL]: "to know how to do something using current ideas, knowledge, information and concepts. Formulate methodology, strategy, and step-by-step implementation plans.",
+  [Dimension.WONDER]: " to wonder about possibilities and scenerios and wonder about the outcomes of each wonder.Model counterfactual possibilities and 'What-if' scenarios.",
   [Dimension.CONSEQUENCE]: "Analyze impact, influence, and downstream effects of potential actions.",
   [Dimension.META_COGNITION]: "Think about the thoughts produced so far. Critically reflect on the reasoning, assumptions, and conclusions generated in previous steps.",
-  [Dimension.CREATIVE]: "Think of new, lateral, or unconventional ways to solve issues, especially when encountering contradictions or dead-ends.",
-  [Dimension.CAUSAL]: "Explain the fundamental 'why' behind a result, pattern, or phenomenon observed in the reasoning.",
+  [Dimension.CREATIVE]: "Exploring all the logical ways to solve a problem. developing new hypothesis. Think of new, lateral, or unconventional ways to solve issues, especially when encountering contradictions or dead-ends.",
+  [Dimension.CAUSAL]: "Explain the fundamental cause behind a result, pattern, or phenomenon observed in the reasoning.",
   [Dimension.INTENT_SYNTHESIS]: "Distill all reasoning into a final, actionable technical directive.",
 };
 
@@ -63,7 +63,13 @@ export class ThinkingEngine {
   private onRetry?: (message: string) => void;
 
   constructor(apiKey: string, onRetry?: (message: string) => void) {
-    this.ai = new GoogleGenAI({ apiKey });
+    this.ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        baseUrl: 'https://aiplatform.googleapis.com',
+        apiVersion: 'v1/publishers/google'
+      }
+    });
     this.onRetry = onRetry;
   }
 
@@ -90,27 +96,27 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
     } catch (error: any) {
       // Detect transient errors (503 Service Unavailable, 429 Too Many Requests)
       const errorStr = JSON.stringify(error);
-      const isTransient = 
-        error?.status === 'UNAVAILABLE' || 
-        error?.code === 503 || 
-        error?.code === 429 || 
-        errorStr.includes('503') || 
-        errorStr.includes('429') || 
+      const isTransient =
+        error?.status === 'UNAVAILABLE' ||
+        error?.code === 503 ||
+        error?.code === 429 ||
+        errorStr.includes('503') ||
+        errorStr.includes('429') ||
         errorStr.includes('high demand') ||
         errorStr.includes('UNAVAILABLE');
-      
+
       if (retries <= 0) {
         console.error("Maximum retries exceeded for API call.", error);
         throw error;
       }
-      
+
       // For transient errors, we use a slightly more aggressive backoff or longer initial wait
-      const waitTime = isTransient ? delay : delay; 
+      const waitTime = isTransient ? delay : delay;
       const message = `Neural Congestion Detected (${isTransient ? '503/429' : 'Error'}). Retrying in ${Math.round(waitTime / 1000)}s... (${retries} attempts left)`;
-      
+
       console.warn(message, error);
       if (this.onRetry) this.onRetry(message);
-      
+
       await new Promise(resolve => setTimeout(resolve, waitTime));
       // Exponential backoff: increase delay for next attempt
       return this.retry(fn, retries - 1, waitTime * 1.5);
@@ -157,8 +163,7 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
     Your question MUST directly address and build upon the CONTROLLER'S INTENT provided above to ensure the thought process keeps progressing.
     ${dimension === Dimension.META_COGNITION ? 'Since this is Meta-Cognition, your question MUST focus on analyzing the thoughts, logic, or potential gaps in the reasoning produced in the history above.' : ''}
     If the dimension is "Understanding", your question must focus on clarifying the intent, scope, or core meaning of the user's request.
-    
-    ${mathInstruction}
+
     
     BE TECHNICAL, CONCISE, AND DIRECT. DO NOT PROVIDE PREAMBLE.`;
 
@@ -339,8 +344,6 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
     
     RICH FORMATTING: Use Markdown (tables, lists, bold) and LaTeX for formulas ($x^2$) to provide a clear, technical response.
     
-    ${mathInstruction}
-    
     BE TECHNICAL, CONCISE, AND DIRECT. DO NOT PROVIDE PREAMBLE.`;
 
     const response = await this.retry(() => this.ai.models.generateContent({
@@ -357,7 +360,7 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
     try {
       const response = await this.retry(() => this.ai.models.generateContent({
         model: TTS_MODEL,
-        contents: [{ parts: [{ text: `Say with a sophisticated, calm, and authoritative voice: ${text}` }] }],
+        contents: [{ parts: [{ text: `Say with a comprehensive, calm, and authoritative voice: ${text}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -368,7 +371,7 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
         },
       }));
 
-      return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+      return response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || null;
     } catch (e) {
       console.error("TTS Generation Failed:", e);
       return null;
@@ -390,7 +393,7 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
     3. Highlight any remaining uncertainties or contradictions.
     4. Explain "Where we are now" in the cognitive journey.
     
-    STYLE: Sophisticated, technical, and highly detailed. Use a structured, long-form message format with rich Markdown (headings, tables, bold) and LaTeX for any mathematical content.`;
+    STYLE: comprehensive, simple, and highly detailed. Use a structured, long-form message format with rich Markdown (headings, tables, bold) and LaTeX for any mathematical content.`;
 
     const response = await this.retry(() => this.ai.models.generateContent({
       model: FLASH_MODEL,
@@ -400,16 +403,16 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
   }
 
   async synthesizeIntent(
-    userInput: string | ThoughtPart[], 
+    userInput: string | ThoughtPart[],
     steps: ThoughtStep[],
     mode: 'fast' | 'deep' = 'deep'
   ): Promise<SynthesisResult> {
     const fullTrace = this.getContext(steps);
-    
+
     const dimensionCounts: Record<string, number> = {};
     Object.values(Dimension).forEach(d => dimensionCounts[d] = 0);
     steps.forEach(s => dimensionCounts[s.dimension]++);
-    
+
     const countsStr = Object.entries(dimensionCounts)
       .filter(([d]) => d !== Dimension.INTENT_SYNTHESIS)
       .map(([d, count]) => `${d}: ${count}/3`)
@@ -448,8 +451,7 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
     - Use bold and italics for emphasis.
     - Use blockquotes for key insights or warnings.
     - Use task lists for implementation steps.
-    
-    ${mathInstruction}
+  
     
     CRITICAL: 
     - Do not settle for abstract directives or high-level summaries. The user wants the actual SOLUTION.
@@ -563,7 +565,7 @@ ${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimens
   }
 
   async generateSuggestions(): Promise<string[]> {
-    const prompt = `You are the OBSIDIAN INTELLIGENCE PROMPT GENERATOR.
+    const prompt = `You are the OBSIDIAN THINKING MACHINE PROMPT GENERATOR.
     TASK: Generate 4 standalone brainstorming tasks focused on inventing new products or solving specific real-world problems.
     STRICT DIRECTIVE: Do NOT assume any prior context or existing products. Each prompt must be a complete, independent idea for a user to explore.
     EXAMPLES: "Invent a new type of wearable device for deep-sea divers.", "Solve the problem of urban noise pollution using bio-materials.", "Design a low-cost water filtration system for rural communities."

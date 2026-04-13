@@ -71,21 +71,21 @@ export default function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const apiKey = "AIzaSyBjEaxo2Q_hBslzm3TV8UvjijNA4NSeAoA";
-  const engine = useMemo(() => new ThinkingEngine(apiKey, (msg) => {
-    setRetryStatus(msg);
-    setTimeout(() => setRetryStatus(prev => prev === msg ? null : prev), 5000);
-  }), []);
-
   useEffect(() => {
     const fetchSuggestions = async () => {
       setIsGeneratingSuggestions(true);
-      const res = await engine.generateSuggestions();
-      setSuggestions(res);
-      setIsGeneratingSuggestions(false);
+      try {
+        const res = await fetch('/api/suggestions');
+        const data = await res.json();
+        setSuggestions(data);
+      } catch (err) {
+        console.error("Failed to fetch suggestions:", err);
+      } finally {
+        setIsGeneratingSuggestions(false);
+      }
     };
     fetchSuggestions();
-  }, [engine]);
+  }, []);
 
   // Disable autoscroll as requested
   // useEffect(() => {
@@ -135,80 +135,70 @@ export default function App() {
     setAudioBase64(null);
 
     try {
-      let currentSteps: ThoughtStep[] = branchFromIndex !== undefined ? steps.slice(0, branchFromIndex + 1) : [];
-      setSteps([...currentSteps]);
-      
-      let nextDim: Dimension | "TERMINATE" = branchFromIndex !== undefined 
-        ? (currentSteps[currentSteps.length - 1].controllerDecision?.nextDimension as Dimension || Dimension.META_COGNITION)
-        : Dimension.UNDERSTANDING;
-        
-      let currentInput: string | ThoughtPart[] = input;
-      if (files.length > 0) {
-        currentInput = [
-          { text: input },
-          ...files.map(f => ({
-            inlineData: { mimeType: f.type, data: f.base64 }
-          }))
-        ];
-      }
-      
-      let safetyCounter = currentSteps.length;
-      
-      while (safetyCounter < 120) {
-        while (nextDim !== "TERMINATE" && safetyCounter < 120) {
-          setCurrentDimension(nextDim as Dimension);
-          
-          const step = await engine.runStep(nextDim as Dimension, currentInput, currentSteps, mode);
-          currentSteps.push(step);
-          setSteps([...currentSteps]);
-          
-          nextDim = step.controllerDecision?.nextDimension || "TERMINATE";
-          safetyCounter++;
-        }
+      const response = await fetch('/api/think', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input, files, mode })
+      });
 
-        setCurrentDimension(null);
-        setRetryStatus(null);
-        const synthesis = await engine.synthesizeIntent(currentInput, currentSteps, mode);
-        
-        if (synthesis.status === "CONTINUE" && synthesis.nextDimension) {
-          nextDim = synthesis.nextDimension;
-          if (synthesis.newDirective) {
-            const directive = `\n\n[SYNTHESIZER DIRECTIVE: ${synthesis.newDirective}]`;
-            if (typeof currentInput === 'string') {
-              currentInput += directive;
-            } else {
-              currentInput[0].text += directive;
+      if (!response.body) throw new Error("No response body");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      let localSteps: ThoughtStep[] = branchFromIndex !== undefined ? steps.slice(0, branchFromIndex + 1) : [];
+      setSteps([...localSteps]);
+
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const { type, payload } = JSON.parse(line.slice(6));
+              switch (type) {
+                case 'current_dimension':
+                  setCurrentDimension(payload);
+                  break;
+                case 'step':
+                  localSteps = [...localSteps, payload];
+                  setSteps([...localSteps]);
+                  break;
+                case 'final_intent':
+                  setFinalIntent(payload);
+                  break;
+                case 'final_report':
+                  setFinalReport(payload);
+                  break;
+                case 'audio_base64':
+                  setAudioBase64(payload);
+                  break;
+                case 'retry':
+                case 'status':
+                  setRetryStatus(payload);
+                  if (type === 'retry') {
+                    setTimeout(() => setRetryStatus(prev => prev === payload ? null : prev), 5000);
+                  }
+                  break;
+                case 'error':
+                  setError(payload);
+                  break;
+              }
+            } catch (e) {
+              console.error("Failed to parse SSE chunk:", e);
             }
           }
-        } else {
-          setFinalIntent(synthesis.content);
-          
-          // Generate Final Report
-          setIsGeneratingReport(true);
-          try {
-            const report = await engine.generateFinalReport(currentInput, currentSteps, synthesis.content);
-            setFinalReport(report);
-          } catch (reportErr) {
-            console.error("Report Generation Failed:", reportErr);
-          } finally {
-            setIsGeneratingReport(false);
-          }
-
-          // Generate TTS for final synthesis
-          const audio = await engine.generateTTS(synthesis.content.substring(0, 500)); // Limit TTS for performance
-          setAudioBase64(audio);
-          break; 
         }
       }
-      
-      if (safetyCounter >= 120) {
-        setError("Safety Termination: Cognitive loop exceeded maximum allowed steps (120).");
-      }
-      
     } catch (err) {
       console.error(err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(`Cognitive Loop Fault: ${errorMessage}`);
+      setError(`Cognitive Loop Fault: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsThinking(false);
       setCurrentDimension(null);
@@ -221,10 +211,16 @@ export default function App() {
     setIsGeneratingSummary(true);
     setShowSummaryOverlay(true);
     try {
-      const res = await engine.generateSummary(steps);
-      setSummary(res);
+      const res = await fetch('/api/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ steps })
+      });
+      const data = await res.json();
+      setSummary(data.summary);
     } catch (err) {
       console.error(err);
+      setError("Summary Generation Failed");
     } finally {
       setIsGeneratingSummary(false);
     }
@@ -274,11 +270,30 @@ export default function App() {
     }
 
     try {
-      await navigator.clipboard.writeText(content);
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        throw new Error("Clipboard API unavailable");
+      }
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
-      console.error("Failed to copy:", err);
+      console.error("Failed to copy using navigator.clipboard:", err);
+      // Fallback method
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = content;
+        document.body.appendChild(textArea);
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+        }
+      } catch (fallbackErr) {
+        console.error("Fallback copy failed:", fallbackErr);
+      }
     }
   };
 
@@ -296,7 +311,7 @@ export default function App() {
         <div className="flex items-center gap-4">
           <NeuralPulse active={isThinking} dimension={currentDimension} />
           <div className="flex flex-col">
-            <h1 className="text-xs font-medium tracking-[0.2em] uppercase text-white">Obsidian Intelligence</h1>
+            <h1 className="text-xs font-medium tracking-[0.2em] uppercase text-white">Obsidian Thinking Machine</h1>
             <span className="micro-label !text-[7px]">Prestige Cognitive Layer v2.0</span>
           </div>
         </div>
@@ -976,7 +991,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex gap-8">
-          <span className="micro-label !text-[8px]">Obsidian Intelligence v2.0.4</span>
+          <span className="micro-label !text-[8px]">Obsidian Thinking Machine v2.0.4</span>
           <span className="micro-label !text-[8px] opacity-40">© 2026 Neural Layer</span>
         </div>
       </footer>

@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# AI Caches and Generated Codebase
+.cdms_model/
+.procoder/
+compiled_codebase.txt
