@@ -244,7 +244,7 @@ Obsidian is an experimental baseline for AGI-level reasoning structures. Future 
 
 The **Obsidian Thinking Machine** represents a paradigm shift from conversational AI chatbots to autonomous cognitive processing networks. By enforcing dimensional quotas, instantiating persona-driven swarm debates, and streaming the entire recursive process via an immersive UI, the system transforms the "black box" of LLM thought into a transparent, highly analytical, and verifiable engine of creativity.
 
-**Proprietary Infrastructure for The Genesis Machine. Developed by Gift Braimah**
+*Proprietary Infrastructure for **The Genesis Machine**. Developed by Gift Braimah*
 
 ***
 *“In the silence of the neural void, the most profound structures are built.”*
