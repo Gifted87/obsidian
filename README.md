@@ -2,9 +2,6 @@
 
 > *"The true sign of intelligence is not mere knowledge, but imagination—structured through the rigors of multi-dimensional contemplation."*
 
-**Developed by Gift Braimah for the Autonomous Intelligence Community.**
-*Licensed under the MIT License. (c) 2026 Obsidian Thinking Machine.*
-
 ## 1. Executive Summary & The Goal of the System
 
 The **Obsidian Thinking Machine** is an advanced, highly experimental multi-agent AI reasoning engine designed to simulate and elevate complex human cognitive processes in machines. 
@@ -15,7 +12,7 @@ Obsidian was engineered to introduce **Machine Creativity through Forced Lateral
 
 Instead of allowing the AI to simply "answer" a question, Obsidian traps the AI in a **Cognitive Loop**. It forces the machine to break down complex inputs, generate probing questions, recall historical patterns, seek external context, model counterfactual "What-If" scenarios, and ruthlessly evaluate its own downstream consequences before it is ever permitted to synthesize a final solution. 
 
-By leveraging the cutting-edge capabilities of the Google GenAI SDK (`@google/genai`)—specifically integrating models like `gemini-3.1-pro-preview` for deep reasoning and `gemini-2.5-flash-preview-tts` for neural audio synthesis—the Obsidian Thinking Machine serves as a premier testbed for the future of AGI (Artificial General Intelligence) reasoning structures.
+By leveraging the cutting-edge capabilities of the Google GenAI SDK (`@google/genai`)—specifically integrating models like `gemini-flash-lite-latest` for high-speed multi-dimensional reasoning and `gemini-2.5-flash-preview-tts` for neural audio synthesis—the Obsidian Thinking Machine serves as a premier testbed for the future of AGI (Artificial General Intelligence) reasoning structures.
 
 ---
 
@@ -99,7 +96,7 @@ Once the Controller outputs `TERMINATE`:
 
 ### Phase 4: Final Generation and Neural TTS
 1.  The Principal Architect agent generates the exhaustive `final_report`.
-2.  A call to `gemini-2.5-flash-preview-tts` generates a base64 audio stream of a comprehensive voice reading the synthesized intent.
+2.  A call to `gemini-2.0-flash-exp` generates a base64 audio stream of a comprehensive voice reading the synthesized intent.
 3.  The server closes the SSE connection.
 
 ---
@@ -136,7 +133,7 @@ The Obsidian Thinking Machine employs a modern, decoupled client-server architec
 ### 7.1. Prerequisites
 *   Node.js version 20.0.0 or higher.
 *   NPM or Yarn package manager.
-*   A Google Gemini API Key with access to `gemini-3.1-pro-preview` and `gemini-2.5-flash-preview-tts`.
+*   A Google Gemini API Key.
 
 ### 7.2. Environment Variables
 
@@ -247,10 +244,7 @@ Obsidian is an experimental baseline for AGI-level reasoning structures. Future 
 
 The **Obsidian Thinking Machine** represents a paradigm shift from conversational AI chatbots to autonomous cognitive processing networks. By enforcing dimensional quotas, instantiating persona-driven swarm debates, and streaming the entire recursive process via an immersive UI, the system transforms the "black box" of LLM thought into a transparent, highly analytical, and verifiable engine of creativity.
 
-It is not just an application; it is a framework for machine contemplation.
-
-### License
-The Obsidian Thinking Machine is released under the **MIT License**. Feel free to use, modify, and distribute it for both commercial and experimental purposes.
+**Proprietary Infrastructure for The Genesis Machine. Developed by Gift Braimah**
 
 ***
 *“In the silence of the neural void, the most profound structures are built.”*

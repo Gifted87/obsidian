@@ -24,7 +24,7 @@ import {
   Copy,
   Check
 } from "lucide-react";
-import { ThinkingEngine, Dimension, ThoughtStep, DIMENSIONS_INFO, ThoughtPart } from "./lib/engine";
+import { Dimension, ThoughtStep, DIMENSIONS_INFO, ThoughtPart } from "./lib/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";

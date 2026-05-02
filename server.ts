@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { ThinkingEngine, Dimension } from './src/lib/engine.ts';
+import { ThinkingEngine } from './src/lib/engine.ts';
+import { Dimension } from './src/lib/types.ts';
+import { keyRotator } from './src/lib/key_rotator.ts';
 
 dotenv.config();
 
@@ -13,9 +15,9 @@ app.use(express.json({ limit: '50mb' }));
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-if (!apiKey) {
-  console.error("CRITICAL ERROR: GEMINI_API_KEY is not defined in the environment.");
-  console.error("Please ensure you have a .env file with GEMINI_API_KEY configured.");
+if (!keyRotator.hasKeys()) {
+  console.error("CRITICAL ERROR: No API keys found in the environment.");
+  console.error("Please ensure you have GEMINI_API_KEY or GEMINI_API_KEYS configured in your .env file.");
   process.exit(1);
 }
 
