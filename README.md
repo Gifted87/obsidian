@@ -1,26 +1,26 @@
-**Obsidian: Building a Thinking Machine**
+**OVAN: Building a Thinking Machine**
 
 Einstein was not considered a genius because he knew more physics than his contemporaries. In fact, there were physicists of his era with broader technical knowledge. What set Einstein apart was something harder to name — the architecture of his reasoning. He asked different questions, approached problems from unexpected angles, and crucially, he turned his thinking back on itself. He reasoned *with* what he knew in ways others did not.
 
 This tells us something important about intelligence: it is not merely a function of knowledge. It is shaped by the structure of the thinking process — what questions are asked, in what order, from what angles, and with what degree of self-correction.
 
-This insight is the foundation of Obsidian.
+This insight is the foundation of OVAN.
 
 ---
 
-**Why Obsidian Exists**
+**Why OVAN Exists**
 
 We already have systems with extraordinary knowledge. A single large language model knows more than any single human being — more history, more science, more literature, more code. Knowledge, in that sense, is a solved problem.
 
 What has not been solved is the *process* of thinking. If intelligence = knowledge × reasoning structure, and LLMs already dominate on knowledge, then closing the gap on reasoning structure should produce something that exceeds human intelligence. Since intelligence is shaped by how one moves through a problem space — The evidence from history's greatest minds suggests it is — then the next frontier is not giving AI more information. It is giving AI a better way to think.
 
-Obsidian is my first attempt to build that.
+OVAN is my first attempt to build that.
 
 ---
 
-**What Obsidian Is**
+**What OVAN Is**
 
-Obsidian is a multi-agent thinking system designed to mirror the structure of deep human reasoning. It is built around three core components:
+OVAN is a multi-agent thinking system designed to mirror the structure of deep human reasoning. It is built around three core components:
 
 **The Controller Agent** acts as the mind. At each step of the thinking process, it reviews all gathered context and determines the best next goal — not mechanically, but adaptively, based on what has been learned so far and what remains unresolved.
 
@@ -28,7 +28,7 @@ Obsidian is a multi-agent thinking system designed to mirror the structure of de
 
 **The Answering Agents** respond to those questions, drawing from training data, web research, analogies, simulations, tools, images, videos, and experiments. They are the system's sensory apparatus — the means by which it reaches into the world to gather what it needs.
 
-What gives Obsidian its structure is the framework of **eight thinking dimensions** — what I call the dimensions of cognition — through which the controller navigates:
+What gives OVAN its structure is the framework of eight thinking dimensions — what I call the dimensions of cognition — through which the controller navigates:
 
 - **Understanding** — What does this mean, and where are its boundaries?
 - **Inquiry** — Why or how does this happen?
@@ -39,44 +39,76 @@ What gives Obsidian its structure is the framework of **eight thinking dimension
 - **Creative** — What new possibilities exist?
 - **Causal** — What are the mechanics and root causes?
 
-The controller begins in one dimension, the questioning agent drives the inquiry, the answering agents gather information, and the controller evaluates what was learned before choosing the next dimension. This cycle continues until the controller judges that sufficient depth has been reached — at which point, Obsidian begins synthesizing a response.
+The controller begins in one dimension, the questioning agent drives the inquiry, the answering agents gather information, and the controller evaluates what was learned before choosing the next dimension. This cycle continues until the controller judges that sufficient depth has been reached — at which point, OVAN begins synthesizing a response.
 
 ---
 
 **Was It Successful?**
 
-Obsidian version 1 is still highly experimental. The current answering agents are limited — they draw only from training data and shallow web searches. Future versions will equip them with richer tools for gathering information, tools like images and videos research, performing simulations, using tools, deep internet research and even performing experiments, and more. The architecture itself is still being refined.
+OVAN version 1 is still highly experimental. The current answering agents are limited — they draw only from training data and shallow web searches. Future versions will equip them with richer tools for gathering information, tools like images and videos research, performing simulations, using tools, deep internet research and even performing experiments, and more. The architecture itself is still being refined.
 
-But the core hypothesis — that structuring the *process* of thinking, not just the store of knowledge, produces meaningfully better reasoning — has shown early promise. The reports generated by Obsidian reflect a depth and coherence that flat, single-pass generation does not consistently achieve. You can explore reports generated by the Obsidian thinking machine here: [github.com/Gifted87/OBSIDIAN-ARTIFACTS](https://github.com/Gifted87/OBSIDIAN-ARTIFACTS)
+But the core hypothesis — that structuring the *process* of thinking, not just the store of knowledge, produces meaningfully better reasoning — has shown early promise. The reports generated by OVAN reflect a depth and coherence that flat, single-pass generation does not consistently achieve. You can explore reports generated by the OVAN thinking machine here: [github.com/Gifted87/OBSIDIAN-ARTIFACTS](https://github.com/Gifted87/OBSIDIAN-ARTIFACTS)
 
 The system is not yet what it will become. But it is a first, serious step toward something worth building: a machine that does not merely know, but genuinely *thinks*.
 
-The goal, ultimately, is superintelligence — not through brute scale, but through better architecture. Obsidian is the beginning of that search.
+The goal, ultimately, is superintelligence — not through brute scale, but through better architecture. OVAN is the beginning of that search.
 
 ---
 
-**How to Use Obsidian**
+**OVAN as an Agent Harness**
 
-Running Obsidian on your laptop takes about ten minutes. Here is exactly what to do, step by step.
+The thinking machine is only half of what OVAN is.
+
+The second half is what happens after thinking ends. Once OVAN has reasoned through a problem and produced a final report, that report is not just text — it becomes the specification for action. OVAN contains a full autonomous execution engine that can take a reasoned plan and carry it out, end to end, without human intervention at each step.
+
+This is what makes OVAN an agent harness, not just a reasoning system.
+
+The execution side of OVAN is built around five components:
+
+**The Planning Swarm** breaks the specification into a structured task graph — a DAG — through a deliberation between five specialized planning agents. A technical architect, a dependency analyst, an execution sequencer, a meta-reasoning auditor, and a final consolidator each contribute their perspective. Their proposals are reconciled into a single, conflict-free execution plan.
+
+**The Worker Agents** carry out individual tasks in parallel. Each worker is an autonomous ReAct loop — it reads files, writes code, runs commands, browses the web, and verifies its own output. Workers in the same batch can edit the same files safely, because the system manages file access at the lock level.
+
+**The Manager Agents** do not execute tasks themselves. They watch. Before a batch begins, a manager formulates an exact model of what success looks like. After the batch completes, it verifies the workers' output against that model — using terminal execution, code parsing, and live browser inspection — and fixes anything that falls short before signing off.
+
+**The Tooling Layer** is what gives agents their reach. Browser automation through Playwright. AST-aware code editing that modifies syntax trees rather than strings. Terminal execution with streaming logs. File operations with concurrency control.
+
+**The Provider Router** keeps the system running continuously. OVAN supports both Gemini and DeepSeek, switches between them at runtime, rotates across pools of API keys to avoid rate limits, and tracks prefix cache performance to minimize cost across long multi-step sessions.
+
+What this means in practice: you can hand OVAN a complex problem — build this application, refactor this codebase, investigate this architecture — and walk away. The cognitive engine reasons through the problem. The planning swarm structures the work. The worker agents execute it. The manager agents verify it. The result is delivered.
+
+That is the full loop. Thinking, planning, executing, verifying.
 
 ---
 
-**Step 1 — Get a Gemini API Key**
+**How to Use OVAN**
 
-Obsidian is powered by Google's Gemini AI. To use it, you need an API key — think of it as a password that gives Obsidian permission to talk to Gemini.
+Running OVAN on your laptop takes about ten minutes. Here is exactly what to do, step by step.
 
+---
+
+**Step 1 — Get Your API Keys**
+
+OVAN supports two AI providers: Google Gemini and DeepSeek. You need at least one.
+
+**For Gemini:**
 1. Go to [aistudio.google.com](https://aistudio.google.com)
 2. Sign in with any Google account
 3. Click **"Get API Key"** in the top-left menu
 4. Click **"Create API key"** and copy the key that appears — it will look something like `AIzaSy...`
 
-Keep this key somewhere safe. You will need it in Step 4.
+**For DeepSeek:**
+1. Go to [platform.deepseek.com](https://platform.deepseek.com)
+2. Sign in and navigate to the API section
+3. Create an API key and copy it — it will look something like `sk-...`
+
+You can use both. OVAN will rotate across multiple keys automatically if you provide them. Keep your keys somewhere safe. You will need them in Step 4.
 
 ---
 
 **Step 2 — Install the Prerequisites**
 
-Before running Obsidian, your laptop needs two things installed: **Node.js** and **Git**. If you already have them, skip ahead.
+Before running OVAN, your laptop needs two things installed: **Node.js** and **Git**. If you already have them, skip ahead.
 
 **Installing Node.js** (version 20 or higher)
 - Go to [nodejs.org](https://nodejs.org) and download the **LTS** version
@@ -97,17 +129,17 @@ Before running Obsidian, your laptop needs two things installed: **Node.js** and
 Open your terminal and run these two commands one at a time:
 
 ```bash
-git clone https://github.com/Gifted87/obsidian.git
-cd obsidian
+git clone https://github.com/Gifted87/ovan.git
+cd ovan
 ```
 
 The first command downloads the project onto your laptop. The second command moves you into the project folder.
 
 ---
 
-**Step 4 — Add Your API Key**
+**Step 4 — Add Your API Keys**
 
-Inside the project folder, you will find a file called `.env.example`. You need to copy it and fill in your key.
+Inside the project folder, you will find a file called `.env.example`. You need to copy it and fill in your keys.
 
 Run this in the terminal:
 
@@ -115,17 +147,17 @@ Run this in the terminal:
 cp .env.example .env
 ```
 
-Now open the new `.env` file in any text editor (Notepad, TextEdit, VS Code — anything works). You will see this line:
+Now open the new `.env` file in any text editor (Notepad, TextEdit, VS Code — anything works). Fill in your keys:
 
 ```
-GEMINI_API_KEY="MY_GEMINI_API_KEY"
-```
+AI_PROVIDER="gemini"
 
-Replace `MY_GEMINI_API_KEY` with the actual key you copied in Step 1. It should end up looking like:
-
-```
 GEMINI_API_KEY="AIzaSyXXXXXXXXXXXXXXXXXXXX"
+
+DEEPSEEK_API_KEYS="sk-XXXXXXXXXXXXXXXXXX"
 ```
+
+If you have multiple keys for the same provider, separate them with commas. OVAN will rotate through them automatically.
 
 Save the file.
 
@@ -133,7 +165,7 @@ Save the file.
 
 **Step 5 — Install Dependencies**
 
-Dependencies are the small software packages that Obsidian relies on to run. Install them with one command:
+Dependencies are the small software packages that OVAN relies on to run. Install them with one command:
 
 ```bash
 npm install
@@ -143,9 +175,9 @@ This may take a minute or two. You will see a lot of text scroll by — that is 
 
 ---
 
-**Step 6 — Run Obsidian**
+**Step 6 — Run OVAN**
 
-Obsidian has two parts: a **backend server** (the brain) and a **frontend interface** (the face). You need to run both at the same time, so you will need **two terminal windows** open side by side.
+OVAN has two parts: a **backend server** (the brain) and a **frontend interface** (the face). You need to run both at the same time, so you will need **two terminal windows** open side by side.
 
 **Terminal 1 — Start the server:**
 ```bash
@@ -163,7 +195,7 @@ Once both are running, open your browser and go to:
 http://localhost:3000
 ```
 
-Obsidian will be live and ready to use.
+OVAN will be live and ready to use.
 
 ---
 
@@ -178,36 +210,34 @@ Obsidian will be live and ready to use.
 
 ---
 
-
 **License**
 
-Obsidian is open source and released under the [MIT License](LICENSE).
+OVAN is open source and released under the [MIT License](LICENSE).
 
 ---
 
 **Build On This**
 
-Obsidian is not a finished product. It is an open foundation — a first serious attempt to show that the architecture of thinking matters as much as the store of knowledge. Version 1 is deliberately minimal. The agents are limited. The dimensions are a starting point, not a ceiling. The whole point is that someone, somewhere, should take this further than I can alone.
+OVAN is not a finished product. It is an open foundation — a first serious attempt to show that the architecture of thinking matters as much as the store of knowledge, and that thinking and doing can be unified in a single system. Version 1 is deliberately minimal. The agents are limited. The dimensions are a starting point, not a ceiling. The whole point is that someone, somewhere, should take this further than I can alone.
 
 If you are a developer, this is an invitation.
 
 The architecture is simple enough to understand in an afternoon and open enough to be taken in almost any direction. Some things worth building:
 
-- **Richer answering agents** — agents that can browse the web deeply, analyse images and videos, run code, perform simulations, query databases, and call external APIs. The current agents are shallow. The framework is ready for agents that are not.
+**Richer answering agents** — agents that can browse the web deeply, analyse images and videos, run code, perform simulations, query databases, and call external APIs. The current agents are shallow. The framework is ready for agents that are not.
 
-- **Better controller logic** — the controller that decides which thinking dimension to explore next is the heart of the system. Smarter routing, learned heuristics, or even a trained model for dimension selection could dramatically improve output quality.
+**Better controller logic** — the controller that decides which thinking dimension to explore next is the heart of the system. Smarter routing, learned heuristics, or even a trained model for dimension selection could dramatically improve output quality.
 
-- **New cognitive dimensions** — the eight dimensions I defined are not the only possible ones. There may be better decompositions. Ethical reasoning, probabilistic thinking, temporal analysis — the design space is wide open.
+**New cognitive dimensions** — the eight dimensions I defined are not the only possible ones. There may be better decompositions. Ethical reasoning, probabilistic thinking, temporal analysis — the design space is wide open.
 
-- **Memory and context** — Obsidian currently thinks without memory. An agent that can recall past reasoning sessions, build a persistent model of a domain, or recognise when it has solved a similar problem before would be a qualitatively different thing.
+**Memory and context** — OVAN currently thinks without memory. An agent that can recall past reasoning sessions, build a persistent model of a domain, or recognise when it has solved a similar problem before would be a qualitatively different thing.
 
-- **Multi-model architectures** — right now everything runs through Gemini. A version that routes different question types to different specialist models — mixing reasoning models, vision models, code models — could be far more capable.
+**Multi-model architectures** — the provider router already supports Gemini and DeepSeek. A version that routes different question types to different specialist models — mixing reasoning models, vision models, code models — could be far more capable.
 
-- **Evaluation frameworks** — how do you measure whether a thinking machine is actually thinking better? Building rigorous benchmarks and evaluation pipelines for this kind of system is unsolved and important work.
+**Evaluation frameworks** — how do you measure whether a thinking machine is actually thinking better? Building rigorous benchmarks and evaluation pipelines for this kind of system is unsolved and important work.
 
 The repository is open. The licence is MIT. Take it, fork it, break it, rebuild it. If you build something interesting on top of this architecture, I want to know about it.
 
-The goal is not that Obsidian wins. The goal is that the idea — that reasoning structure matters — gets tested, refined, and taken as far as it can go. That requires more than one person.
+The goal is not that OVAN wins. The goal is that the idea — that reasoning structure matters — gets tested, refined, and taken as far as it can go. That requires more than one person.
 
 Build something.
-
