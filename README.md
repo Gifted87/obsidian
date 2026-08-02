@@ -20,26 +20,37 @@ OVAN is my first attempt to build that.
 
 **What OVAN Is**
 
-OVAN is a multi-agent thinking system designed to mirror the structure of deep human reasoning. It is built around three core components:
+OVAN is a multi-agent thinking system designed to mirror the structure of deep human reasoning. At each step of the thinking process, six agents work in sequence, each doing a distinct job.
 
-**The Controller Agent** acts as the mind. At each step of the thinking process, it reviews all gathered context and determines the best next goal — not mechanically, but adaptively, based on what has been learned so far and what remains unresolved.
+**The Questioner** opens every step. It reads the full reasoning history and generates a single, precise, probing question — framed for the dimension being explored. Its only job is to ask the right question. It is explicitly forbidden from answering it.
 
-**The Questioning Agent** receives the current goal and the full context and generates a precise question designed to advance the thought toward that goal. This reflects something real about how insight is generated: the right question, asked at the right moment, unlocks what a hundred answers could not.
+**Three Answerer Agents** respond to that question in parallel, each from a different epistemic standpoint:
 
-**The Answering Agents** respond to those questions, drawing from training data, web research, analogies, simulations, tools, images, videos, and experiments. They are the system's sensory apparatus — the means by which it reaches into the world to gather what it needs.
+- The **Internal Answerer** reasons from first principles — the core mechanics, formal models, and intrinsic structure of the problem.
+- The **Archival Answerer** draws on collective memory — historical precedent, documented patterns, intellectual traditions, and what humanity has learned across time.
+- The **External Answerer** grounds the reasoning in the live world — current research, market data, external context, and logical verification that the reasoning is not in a vacuum.
 
-What gives OVAN its structure is the framework of eight thinking dimensions — what I call the dimensions of cognition — through which the controller navigates:
+**The Meta Reasoning Agent** then reads all three answers and audits them — checking for factual accuracy, logical consistency, internal contradictions, and hallucinations. It does not replace any answerer. Its job is to produce a rigorous critique that the next agent uses as input.
 
-- **Understanding** — What does this mean, and where are its boundaries?
+**The Thinking Agent** — the main thinker — does the hardest work. It takes the three initial perspectives, the meta-reasoning audit, and the original question, and engages in an exhaustive internal monologue: questioning premises, reconciling contradictions, playing devil's advocate, and working through the logic step by step. Only after this monologue does it produce a final consolidated insight — the output that gets passed to the controller.
+
+**The Controller** reads that consolidated insight alongside the full reasoning history and decides what to do next: which dimension to explore, why, and what the intent of the next step should be. When it judges that sufficient depth has been reached, it terminates the thinking loop and passes everything to the synthesizer.
+
+What gives this structure its reach is the framework of nine thinking dimensions — what I call the dimensions of cognition — through which the controller navigates:
+
+- **Understanding** — What does this actually mean, and where are its boundaries?
 - **Inquiry** — Why or how does this happen?
 - **Procedural** — What are the steps involved?
 - **Wonder** — What if things were different?
 - **Consequence** — What are the impacts and risks?
-- **Meta-cognition** — How sound is the thinking so far?
+- **Meta-Cognition** — How sound is the thinking so far?
 - **Creative** — What new possibilities exist?
 - **Causal** — What are the mechanics and root causes?
+- **Grounding** — Are the claims actually true? What evidence exists?
 
-The controller begins in one dimension, the questioning agent drives the inquiry, the answering agents gather information, and the controller evaluates what was learned before choosing the next dimension. This cycle continues until the controller judges that sufficient depth has been reached — at which point, OVAN begins synthesizing a response.
+Each dimension has strict anti-overreach rules. The Consequence agent does not propose solutions. The Grounding agent does not explore speculative scenarios. The Wonder agent does not analyze real consequences. The boundaries are enforced so that each dimension contributes something the others cannot, and the full picture only emerges across the whole sequence.
+
+The controller begins in one dimension. The questioner drives the inquiry. The three answerers respond. The meta reasoning agent audits. The thinking agent consolidates. The controller evaluates and chooses the next dimension. This cycle continues until the controller judges that sufficient depth has been reached — at which point, OVAN begins synthesizing a response.
 
 ---
 
