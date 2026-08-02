@@ -1,249 +1,400 @@
-# Obsidian Thinking Machine: The Prestige Cognitive Layer
+# OVAN System Architecture & Technical Specification
 
-> *"The true sign of intelligence is not mere knowledge, but imagination—structured through the rigors of multi-dimensional contemplation."*
-
-## 1. Executive Summary & The Goal of the System
-
-The **Obsidian Thinking Machine** is an advanced, highly experimental multi-agent AI reasoning engine designed to simulate and elevate complex human cognitive processes in machines. 
-
-The primary goal of this system is to shatter the illusion of the "linear prompt." Traditional Large Language Models (LLMs) operate as stochastic parrots; they receive a prompt and immediately attempt to predict the next most likely sequence of tokens to satisfy the user. This linear pipeline results in shallow reasoning, "hallucination by momentum" (where the model commits to a flawed logical path too early), and a complete absence of genuine creativity.
-
-Obsidian was engineered to introduce **Machine Creativity through Forced Lateral Contemplation**. It operates on the thesis that creativity and rigorous problem-solving are not monolithic events, but the collision of distinct, specialized mental modalities working in concert. 
-
-Instead of allowing the AI to simply "answer" a question, Obsidian traps the AI in a **Cognitive Loop**. It forces the machine to break down complex inputs, generate probing questions, recall historical patterns, seek external context, model counterfactual "What-If" scenarios, and ruthlessly evaluate its own downstream consequences before it is ever permitted to synthesize a final solution. 
-
-By leveraging the cutting-edge capabilities of the Google GenAI SDK (`@google/genai`)—specifically integrating models like `gemini-flash-lite-latest` for high-speed multi-dimensional reasoning and `gemini-2.5-flash-preview-tts` for neural audio synthesis—the Obsidian Thinking Machine serves as a premier testbed for the future of AGI (Artificial General Intelligence) reasoning structures.
+> **OVAN: A Unified Architecture for Multidimensional Machine Contemplation and Autonomous Agent Execution**  
+> *Version 2.0 | Engine Core & Harness Specification*
 
 ---
 
-## 2. The Solution to Machine Creativity: The 9-Dimensional Framework
+## 1. Executive Overview & System Philosophy
 
-To foster genuine creativity and lateral thinking, the system rejects standard conversational flows. Instead, it utilizes a **Cognitive Dimensional Model**. The reasoning process is divided into 9 distinct, purpose-driven "Dimensions." The system dynamically transitions between these dimensions, preventing shallow reasoning and forcing the AI to view the problem from radically different paradigms.
+The **OVAN System** is a next-generation AI platform that unifies two fundamental pillars of machine intelligence:
+1. **Multidimensional Cognitive Contemplation** (The Thinking Engine)
+2. **Autonomous Graph-Based Task Execution** (The Agent Harness)
 
-### 2.1. Understanding
-The foundational dimension. Before creativity can occur, intent must be crystallized. This dimension defines the scope, parses the core meaning of the user's request, and clarifies ambiguous terminology. *What exactly is being requested, and what are the boundary conditions?*
+Traditional Large Language Model (LLM) interfaces operate on linear prompt-response paradigms. When presented with a task, a standard model attempts to predict the next sequence of tokens in a single, un-reflected pass. This leads to shallow reasoning, early commitment to flawed architectural choices, hallucination by momentum, and an inability to self-correct during complex multi-step problems.
 
-### 2.2. Inquiry
-The dimension of rigorous investigation. Inquiry seeks to uncover the "why" and the "how." It focuses on gathering facts, uncovering underlying logic, and demanding empirical evidence, stripping away assumptions to find the root cause.
+OVAN addresses this fundamental limitation by decomposing intelligence into two decoupled, asynchronous phases:
 
-### 2.3. Procedural
-The dimension of action and methodology. It translates abstract concepts into concrete implementation plans, focusing on algorithms, operational guidelines, and architectural blueprints.
-
-### 2.4. Wonder (The Catalyst of Creativity)
-The dimension of unconstrained possibility. Wonder is responsible for modeling counterfactuals and scenarios. It breaks away from rigid determinism to explore alternate realities, edge cases, and hypotheticals. *What if the fundamental constraints of this problem were inverted?*
-
-### 2.5. Consequence
-The dimension of impact analysis. Every creative action has a reaction. Consequence analyzes the downstream effects, societal impacts, security vulnerabilities, and systemic risks of the proposed solutions.
-
-### 2.6. Meta-Cognition
-The dimension of self-reflection. In Meta-Cognition, the system temporarily stops thinking about the user's prompt and instead thinks about its *own* thoughts. It critically evaluates the reasoning generated in previous iterations, actively searching for logical fallacies, biases, or gaps in its own data.
-
-### 2.7. Creative
-The dimension of lateral thinking and innovation. When the system encounters a logical dead-end or a deeply ingrained contradiction, it pivots to the Creative dimension. Here, it is explicitly instructed to devise unconventional, out-of-the-box solutions and bridge seemingly unrelated concepts using metaphorical synthesis.
-
-### 2.8. Causal
-The dimension of fundamental physics and logic. Causal reasoning is employed to explain the definitive root mechanics behind a specific result or phenomenon observed during the loop, stripping away correlation to focus purely on deterministic drivers.
-
-### 2.9. Intent Synthesis
-The terminal dimension. After traversing the various cognitive dimensions (and satisfying strict visitation quotas), the system enters Intent Synthesis. All divergent, creative thoughts are distilled into a singular, actionable, and highly technical directive that resolves the user's original request.
-
----
-
-## 3. Structural Organization: The Autonomous Agent Swarm
-
-Obsidian does not rely on a single LLM call to navigate these Cognitive Dimensions. Instead, it utilizes an orchestrated **Swarm of Specialized Agents**. Each iteration in the cognitive loop is a micro-debate among these distinct personas.
-
-### 3.1. The Questioner Agent (The Catalyst)
-At the start of every cognitive step, the Questioner analyzes the current dimension and the overall intent. It then generates a single, highly specific, and piercing question designed to extract maximum value from the Answerer agents. *Constraint: It must never provide answers, only provoke thought.*
-
-### 3.2. The Triad of Answerers (Triangulation of Truth)
-Instead of a single answer, the system forces three distinct perspectives to respond to the Questioner simultaneously in parallel (`Promise.all`):
-*   **Internal Answerer (The Self):** Responds purely based on internal logic, structural mechanics, and theoretical first-principles.
-*   **Archival Answerer (The Past):** Responds by drawing upon historical analogies, past patterns, established case studies, and biographical memory.
-*   **External Answerer (The World):** Responds by looking outward, utilizing general world knowledge and broad context (with native capabilities to use Google Search grounding for real-time data).
-
-### 3.3. The Controller Agent (The Prefrontal Cortex)
-The Controller evaluates the Question and the Triad of Answers. It looks at the global context (the history of all steps) and the dimensional quotas. Using native Function Calling (`set_next_dimension`), it autonomously decides which Cognitive Dimension the system must transition to next. It enforces interleaving, forces pivots to 'Creative' upon detecting dead-ends, and ensures that the 'TERMINATE' command is only issued when absolute sufficiency is met.
-
-### 3.4. The Intent Synthesizer (The Quality Gate)
-Triggered when the Controller calls 'TERMINATE'. The Synthesizer analyzes the massive, exhaustive reasoning trace. If it determines the reasoning is still incomplete despite the Controller's decision, it violently overrides the termination, outputs a `CONTINUE` status with a new `newDirective`, and forces the loop to restart.
-
-### 3.5. The Principal Architect (The Author)
-Consumes the final Synthesized Intent and the entire cognitive trace to generate a massive, production-grade Markdown report. It formats the output with executive summaries, problem analysis, architecture diagrams, and roadmaps.
-
----
-
-## 4. The Request Lifecycle & Cognitive Loop Mechanics
-
-The core functionality of the application lies in the intricate lifecycle of a single user request, managed by the Express backend.
-
-### Phase 1: Initiation and Multimodal Processing
-The user inputs a text prompt and optionally uploads multiple files (images, documents). The React frontend sends a POST request to `/api/think`. The Express server initializes a new instance of the `ThinkingEngine`, converting multimodal inputs into `inlineData` objects compatible with the Gemini API.
-
-### Phase 2: The Cognitive Loop (The `while` loop)
-The system enters a bounded `while` loop (with a safety threshold of 120 maximum steps to prevent infinite recursion). The starting dimension is always `Understanding`.
-1.  **Context Building:** The engine concatenates all previous `ThoughtStep` objects into a massive context string.
-2.  **Question Generation:** The Questioner Agent generates a targeted query.
-3.  **Parallel Answering:** The Internal, Archival, and External agents fire simultaneously.
-4.  **Controller Decision:** The Controller analyzes the results. In `deep` mode, it enforces that all dimensions have a count of `>= 3`. It outputs `{ nextDimension, reasoning }`.
-5.  **SSE Streaming:** As each phase of the step completes, the server uses Server-Sent Events (SSE) via `res.write()` to stream the payload back to the React client in real-time.
-
-### Phase 3: Synthesis and Overrides
-Once the Controller outputs `TERMINATE`:
-1.  The loop halts, and the `synthesizeIntent` method is called.
-2.  If the Synthesizer issues a `CONTINUE` override, the system injects a `[SYNTHESIZER DIRECTIVE]` into the base prompt and resumes the Cognitive Loop at Phase 2.
-3.  If the Synthesizer issues `COMPLETE`, the loop breaks permanently.
-
-### Phase 4: Final Generation and Neural TTS
-1.  The Principal Architect agent generates the exhaustive `final_report`.
-2.  A call to `gemini-2.0-flash-exp` generates a base64 audio stream of a comprehensive voice reading the synthesized intent.
-3.  The server closes the SSE connection.
-
----
-
-## 5. Operational Modes: Fast vs. Deep Reasoning
-
-The system provides the user with two distinct operational modes, which fundamentally alter the Controller and Synthesizer's prompt instructions.
-
-*   **Fast Mode (Agile Reasoning):** Optimized for speed. The system will synthesize an answer as soon as it feels sufficient data has been gathered. Quotas are disabled. Ideal for quick code reviews, straightforward questions, or agile brainstorming.
-*   **Deep Mode (Exhaustive Analysis):** Optimized for extreme rigor and creative breakthroughs. The system enforces a strict minimum quota (e.g., 3 visits per dimension). The system is forbidden from terminating early. This mode is for complex architectural planning, resolving philosophical paradoxes, and deep-dive root cause analysis.
-
----
-
-## 6. System Architecture and Technical Stack
-
-The Obsidian Thinking Machine employs a modern, decoupled client-server architecture optimized for real-time streaming and heavy API orchestration.
-
-### 6.1. Backend Architecture (Node.js + Express)
-*   **Core Technologies:** `express`, `cors`, `dotenv`, `@google/genai`.
-*   **Runtime:** Node.js (>=20.0.0) executed via `tsx` (TypeScript Execute).
-*   **Engine Logic (`src/lib/engine.ts`):** Implements the `ThinkingEngine` class. It manages the Gemini SDK client and parses tool calls using strict JSON extraction fallbacks.
-*   **Neural Congestion Protocol (Resilience):** The backend implements a recursive `retry` wrapper with exponential backoff. This is critical for handling `429` (Too Many Requests) and `503` (Service Unavailable) errors, which are common during high-volume, multi-agent LLM loops. If congestion occurs, an SSE event is sent to the frontend to display a "Neural Congestion" warning to the user.
-
-### 6.2. Frontend Architecture (React + Vite)
-*   **Core Technologies:** React 19, Vite 6, TailwindCSS 4, Framer Motion (`motion/react`), Lucide React.
-*   **UI/UX Design:** The interface is styled as a cyberpunk-inspired "Neural Void" using dark mode (`bg-obsidian`), glassmorphism panels, and micro-labels. Framer Motion animates the entrance of new thought steps and the "Neural Pulse" loading states.
-*   **Server-Sent Events (SSE) Client:** The frontend implements a raw `fetch` call utilizing the `ReadableStream` API. It decodes the stream, splits it by newline, and parses the JSON payloads in real-time to update the UI without waiting for the massive loop to finish.
-*   **Markdown Rendering:** Relies on `react-markdown` paired with `remark-gfm`, `rehype-raw`, `remark-math`, and `rehype-katex`. This ensures that the highly technical, formula-rich outputs of the Architect agent are rendered beautifully with full LaTeX support.
-
----
-
-## 7. Setup, Installation, and Deployment Guide
-
-### 7.1. Prerequisites
-*   Node.js version 20.0.0 or higher.
-*   NPM or Yarn package manager.
-*   A Google Gemini API Key.
-
-### 7.2. Environment Variables
-
-The Obsidian Thinking Machine requires the following environment variables to be set. You can set these in a `.env` file in the root directory.
-
-| Variable | Requirement | Description |
-| :--- | :--- | :--- |
-| `GEMINI_API_KEY` | **Required** | Your Google Gemini API key from [Google AI Studio](https://aistudio.google.com/). |
-| `APP_URL` | Optional | The public URL of the application. Used for production deployment. |
-| `DISABLE_HMR` | Optional | Set to `true` to disable Hot Module Replacement in the Vite development server. |
-
-### 7.3. Local Setup Instructions
-
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/gifted87/obsidian-thinking-machine.git
-    cd obsidian-thinking-machine
-    ```
-
-2.  **Install Dependencies:**
-    This will install all necessary packages for both the Vite frontend and the Express backend.
-    ```bash
-    npm install
-    ```
-
-3.  **Configure Environment:**
-    Create a `.env` file and add your `GEMINI_API_KEY`:
-    ```bash
-    cp .env.example .env
-    ```
-    Open `.env` and configure your keys:
-    ```env
-    GEMINI_API_KEY=your_actual_api_key_here
-    ```
-
-    > [!CAUTION]
-    > **SECURITY WARNING**: Never commit your `.env` file or hardcode your API key. The system is designed to fail explicitly if `GEMINI_API_KEY` is not detected in the environment.
-
-4.  **Running the Development Environment:**
-    The project utilizes a decoupled client-server architecture. You must run the backend server and the Vite frontend simultaneously in two separate terminal windows.
-    
-    **Terminal 1 (Backend Server):**
-    ```bash
-    npm run server
-    ```
-    *Expected Output:* `Backend server running at http://localhost:3030`
-
-    **Terminal 2 (Frontend Client):**
-    ```bash
-    npm run dev
-    ```
-    *Expected Output:* Vite will host the application on `http://localhost:3000` (or `0.0.0.0:3000`).
-
-### 7.3. Building for Production
-To create an optimized, minified production build of the frontend:
-```bash
-npm run build
 ```
-This generates static files in the `/dist` directory. The Express backend can then be modified to serve these static files natively using `express.static('dist')`.
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 1: THE THINKING ENGINE                       │
+│  Multidimensional Contemplation → 6-Agent Step Swarm → Final Spec      │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 2: THE AGENT HARNESS                         │
+│  5-Agent Planning Swarm → DAG Generation → Parallel Worker/Manager Execution │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+In **Phase 1**, OVAN traps the problem in a **Multidimensional Cognitive Loop**. Instead of immediately answering or acting, it forces the AI to traverse nine distinct dimensions of cognition—asking probing questions, gathering internal first-principles logic, searching collective historical memory, evaluating external world data, auditing claims with a dedicated meta-reasoning agent, engaging in stream-of-consciousness monologues, and enforcing strict anti-overreach boundaries.
+
+In **Phase 2**, the synthesized insight produced by Phase 1 becomes the authoritative specification for the **Autonomous Execution Engine**. A 5-agent planning swarm parses the specification into a Directed Acyclic Graph (DAG) of parallel batches. Autonomous Worker agents execute tasks using AST-aware code transformers, terminal runners, and headless browser controllers, while Manager agents pre-model outcomes, verify results using live sandboxes, and apply active fixes before signing off.
 
 ---
 
-## 8. Usage Guide & User Interface
+## 2. Part 1: The Cognitive Engine (Multidimensional Reasoning Layer)
 
-### Initiating the Loop
-1.  Navigate to `http://localhost:3000`.
-2.  Use the **Stimulus Input** panel to enter your prompt. (e.g., "Design a conceptual framework for a faster-than-light communication protocol using quantum entanglement.")
-3.  Click the **Upload** icon to attach any relevant images or text files as multimodal context.
-4.  Click **Initiate Loop** and select your desired mode (`Fast Mode` or `Deep Mode`).
+The cognitive layer of OVAN is governed by `ThinkingEngine` (Google GenAI) and `DeepSeekEngine` (DeepSeek OpenAI-compatible provider). It transforms linear LLM calls into a structured, self-auditing graph of reasoning steps (`ReasoningGraph`).
 
-### Monitoring the Cognitive Chronicle
-As the system thinks, the **Cognitive Evolution Monitor** on the left will track the iterations and dimensions visited. The main right-hand panel (The Cognitive Chronicle) will populate in real-time, showing:
-*   The Questioner's generated prompt.
-*   The Internal, Archival, and External syntheses.
-*   The Controller's directive and reasoning for the next step.
+```
+                    ┌──────────────────────────────┐
+                    │       Controller Agent       │
+                    │  (Selects Dimension & Goal)  │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │       Questioner Agent       │
+                    │   (Single Probing Question)  │
+                    └──────────────┬───────────────┘
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         ▼                         ▼                         ▼
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│ Internal Bot    │       │ Archival Bot    │       │ External Bot    │
+│ First-Principles│       │ Historical/Mem  │       │ Live World/Data │
+└────────┬────────┘       └────────┬────────┘       └────────┬────────┘
+         │                         │                         │
+         └─────────────────────────┼─────────────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │    Meta Reasoning Agent      │
+                    │  (Audits Logic & Truth)      │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │        Thinking Agent        │
+                    │   (Monologue & Final Insight)│
+                    └──────────────────────────────┘
+```
 
-### Branching Thoughts
-At any point in the Chronicle, you can click **"Branch Process."** This allows you to fork the reasoning from a specific iteration. If you notice the system exploring a fascinating lateral concept in iteration 4, you can restart the loop from that exact moment to explore alternate timelines of thought.
+### 2.1. Dual-Provider Routing & Multi-Key Sticky Affinity Rotator
 
-### The Final Report & Neural Audio
-Once the system synthesizes its intent:
-*   The UI will display the **Intent Realized** panel.
-*   Click **Full Report** to open a modal containing the exhaustive, 3000+ word markdown document generated by the Principal Architect. You can download this directly as a `.md` file.
-*   Click the **Speaker Icon** to listen to the neural TTS audio synthesis of the executive summary.
+OVAN provides native multi-provider support with hot-swapping between **Google Gemini** (`gemini-flash-lite-latest`, `gemini-2.5-flash-preview-tts`) and **DeepSeek** (`deepseek-v4-flash`, `deepseek-reasoner`).
+
+To sustain continuous multi-agent sessions without encountering rate limits or quota exhaustion, OVAN implements a session-aware API key rotator:
+- **`KeyRotator` (`src/lib/key_rotator.ts`)**: Rotates Gemini API keys across requests using round-robin distribution with automated fallback logic on transient HTTP `429` (Rate Limit) and `503` (Service Unavailable) errors.
+- **`DeepSeekKeyRotator` (`src/lib/deepseek_engine.ts`)**: Implements **Sticky Session Key Affinity**. To maximize API provider prompt caching, all calls originating from the same `sessionId` are bound to the same API key. This ensures the prompt cache prefix remains valid on the remote provider across all steps of a reasoning loop.
+
+### 2.2. The 9 Cognitive Dimensions & Strict Anti-Overreach Rules
+
+Reasoning in OVAN is partitioned across nine explicit dimensions (`Dimension` enum in `src/lib/types.ts`). Every dimension enforces strict **Anti-Overreach Boundaries** to prevent agents from jumping to premature conclusions or blurring responsibilities:
+
+1. **`Understanding`**: Focuses strictly on clarifying what the subject means, mapping intent, and defining scope and boundaries.
+   * *Anti-Overreach Rule*: Forbidden from proposing solutions, explaining mechanics, or providing execution steps.
+2. **`Inquiry`**: Investigates the underlying "why" and "how" of phenomena, referencing core principles and academic theory.
+   * *Anti-Overreach Rule*: Forbidden from generating practical implementation steps or speculative what-if scenarios.
+3. **`Procedural`**: Formulates operational methodologies, ordered execution steps, and task decompositions.
+   * *Anti-Overreach Rule*: Forbidden from analyzing theoretical mechanics or debating counterfactual scenarios.
+4. **`Wonder`**: Explores speculative counterfactuals and hypotheticals ("What if core assumptions were removed or inverted?").
+   * *Anti-Overreach Rule*: Forbidden from providing realistic plans, actual mechanics, or real consequence analysis.
+5. **`Consequence`**: Evaluates downstream risks, trade-offs, security vulnerabilities, and failure modes.
+   * *Anti-Overreach Rule*: Forbidden from proposing new directions, explaining root causes, or listing steps.
+6. **`Meta-Cognition`**: Audits the quality and integrity of the reasoning trace itself, flagging drift, fixation, or bias.
+   * *Anti-Overreach Rule*: Forbidden from introducing new domain ideas or external factual data.
+7. **`Creative`**: Executes lateral thinking, reframing problem boundaries, and generating unconventional synthesis when blocked.
+   * *Anti-Overreach Rule*: Forbidden from following conventional paths or evaluating standard risks.
+8. **`Causal`**: Traces root causes, parameter dependencies, and feedback loops driving observed state behaviors.
+   * *Anti-Overreach Rule*: Forbidden from describing actions to take or speculating on alternative models.
+9. **`Grounding`**: Fact-checks claims made in the reasoning trace against empirical evidence, formal proofs, or code execution.
+   * *Anti-Overreach Rule*: Forbidden from speculating or expanding plans beyond verifiable evidence.
+
+*Special Operational Modes*: `INTERACTIVE` (direct human user prompt input), `INTENT_SYNTHESIS` (final technical directive distillation), and `CODE_OBSERVATION` (ground-truth Docker/local sandbox execution feedback).
+
+### 2.3. The 6-Agent Sequential/Parallel Workflow per Step
+
+Each cognitive step in OVAN executes a structured sequence across six specialized AI agent roles:
+
+1. **The Questioner Agent**: Analyzes the current step's assigned dimension, controller intent, and history. Formulates a single, highly focused, technical question tailored to force the Answerers to fulfill that exact dimension's goal. It is strictly forbidden from answering the question itself.
+2. **The Triad of Answerer Agents (Parallel Dispatch)**:
+   - **Internal Answerer**: Reasons from first principles, intrinsic anatomy, system mechanics, and theoretical models.
+   - **Archival Answerer**: Searches historical precedent, collective human memory, analogies, and past post-mortems.
+   - **External Answerer**: Analyzes live real-world context, modern research, market reality, and external domain facts.
+3. **The Meta Reasoning Agent**: Consumes the outputs of all three Answerers. Audits them for logical consistency, factual accuracy, overreach, and hallucinations, producing an objective critique.
+4. **The Thinking Agent (Main Thinker)**: The primary cognitive consolidator. It enters an unvarnished, stream-of-consciousness internal monologue (`<thinking> ... </thinking>`). In this monologue, it speaks to itself in first person, questions premises, reconciles contradictions between Archival and External perspectives, performs mathematical verifications, and then outputs a consolidated insight (`consolidatedInsight`).
+5. **The Controller Agent**: Evaluates the step's consolidated insight alongside the full graph history. Using structured JSON schema output, it decides whether to transition to a new dimension (`SINGLE` mode) or issue a `TERMINATE` directive when reasoning saturation is reached.
+
+### 2.4. DeepSeek Unified Shared History Prefix & Cache Telemetry
+
+To optimize multi-agent LLM latency and cost, `DeepSeekEngine` implements a **Unified Shared History Prefix** (`makeCacheableMessages`):
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ [System Prompt]       STATIC_SYSTEM_PROMPT (Immutable across session)          │ ──► ALWAYS HIT
+├───────────────────────────────────────────────────────────────────────────────┤
+│ [User Prompt]         Core User Query (Immutable across session)              │ ──► ALWAYS HIT
+├───────────────────────────────────────────────────────────────────────────────┤
+│ [...History]          Immutable Step Trace 1..N (Shared across ALL agents)     │ ──► ALWAYS HIT
+├───────────────────────────────────────────────────────────────────────────────┤
+│ [Agent Instructions]  Agent Persona Rules (Questioner / Answerer / Meta / etc)│ ──► Branch Point
+├───────────────────────────────────────────────────────────────────────────────┤
+│ [Task Directive]      Turn-Specific Directive (Dynamic tail)                  │ ──► Dynamic Miss
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+Because all six agents in a reasoning turn receive the exact same `[System] + [User Query] + [History]` prefix, the initial agent (Questioner) warms the remote provider cache. All subsequent agents (Internal, Archival, External, Meta, Main Thinker, Controller) achieve **85%+ prompt cache hit rates**, cutting API token costs by ~90% and accelerating turn completion.
+
+The global telemetry tracker (`CacheTracker`) monitors token hit/miss metrics continuously and exposes live telemetry via `/api/cache-stats`.
+
+### 2.5. Prompt Memory Evolution & Self-Correction
+
+OVAN features a self-evolving prompt system (`PromptMemory` in `src/lib/prompt_memory.ts`). During `Meta-Cognition` steps:
+1. The engine extracts prompt mutation proposals (`agentRole`, `proposedAddition`, `rationale`).
+2. Mutations are saved to `memory/prompt_mutations.json`.
+3. Active mutations are appended dynamically to the tail of targeted agent prompts on subsequent steps, allowing the engine to learn from past reasoning failures within and across sessions.
+
+### 2.6. Async Sandboxed Code Execution Side-Channel
+
+When an Answerer or Thinking Agent requires mathematical verification, data processing, or algorithmic simulation:
+1. The agent invokes the `execute_code` function tool (`python3` or `javascript`).
+2. `sandbox.ts` dispatches the snippet into a isolated local process or container (`runCodeInSandbox`).
+3. The raw `stdout`, `stderr`, `exitCode`, and `elapsedMs` are returned as ground truth.
+4. The engine injects a `CODE_OBSERVATION` step into the `ReasoningGraph`, preventing the model from speculating on computational outputs.
 
 ---
 
-## 9. System Integrity & Error Recovery
+## 3. Part 2: The Autonomous Execution Engine (Agent Harness Layer)
 
-The Obsidian Thinking Machine is built to survive the chaos of continuous, automated LLM API calls.
+Once the Thinking Engine synthesizes a final report, OVAN transitions into an **Autonomous Execution Harness** (`DagExecutor` in `src/executor/dag_executor.ts`).
 
-*   **Cognitive Loop Fault Handling:** If the Controller Bot fails to output valid JSON or misses its function call, the system does not crash. The engine's `extractJson` fallback attempts raw parsing. If that fails, it injects a synthetic directive forcing a transition to `Meta-Cognition` with the reason: *"Controller failed to use native function calling. Transitioning to Meta-Cognition to recover."*
-*   **Safety Termination Limit:** To prevent runaway API costs, the system enforces a hard limit of `120` iterations. If the Controller fails to call `TERMINATE` before this limit, the system executes a graceful shutdown, returning the data gathered thus far with a safety warning.
-*   **Neural Congestion:** Handled elegantly by the backend's recursive retry wrapper, utilizing exponential backoff specifically tuned for Google GenAI's `429` and `503` status codes.
+```
+                    ┌──────────────────────────────┐
+                    │    Final Thinking Report     │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │    5-Agent Planning Swarm    │
+                    │ (Architect, Risk, Sequencer, │
+                    │    Auditor, Consolidator)    │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │         Task DAG             │
+                    │   (Batches 1..N in parallel) │
+                    └──────────────┬───────────────┘
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         ▼                         ▼                         ▼
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│ Worker Agent 1  │       │ Worker Agent 2  │       │ Worker Agent 3  │
+│ (ReAct Loop)    │       │ (ReAct Loop)    │       │ (ReAct Loop)    │
+└────────┬────────┘       └────────┬────────┘       └────────┬────────┘
+         │                         │                         │
+         └─────────────────────────┼─────────────────────────┘
+                                   │ (All Tasks in Batch Complete)
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │        Manager Agent         │
+                    │  (Outcome Model & Sandbox    │
+                    │        Verification)         │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │     Documentation Agent      │
+                    │ (Markdown Summary & Archival)│
+                    └──────────────────────────────┘
+```
+
+### 3.1. Execution Job & Top-Level DAG Specification
+
+An execution run is encapsulated by an `ExecutionJob` (`src/executor/dag_types.ts`):
+- **`TaskNode`**: The fundamental unit of work containing `id`, `batchId`, `title`, `description`, `agentRole` (`WORKER` vs `MANAGER`), `dependsOn` (IDs of prerequisite tasks), `filesToRead` (reconnaissance scope), `filesToWrite` (write lock scope), `estimatedComplexity` (`LOW` | `MEDIUM` | `HIGH`), and `rollbackOnFailure`.
+- **`TaskDAG`**: A complete, validated directed acyclic graph containing an array of `TaskNode` objects organized into sequential `Batch` structures.
+
+### 3.2. The 5-Agent Consensus Planning Swarm
+
+Before any code is edited or command executed, the execution specification is submitted to a **5-Agent Planning Swarm** (`src/planning/planning_step.ts`):
+
+1. **Planner A (Technical Architect)**: Focuses on architectural cohesion, structural pattern consistency, and modular code isolation.
+2. **Planner B (Dependency & Risk Analyst)**: Identifies file conflict risks, potential circular dependencies, external library requirements, and failure blast radiuses.
+3. **Planner C (Execution Sequencer)**: Maximizes parallelism by grouping non-interfering tasks into optimal concurrent batches (`batchId`).
+4. **Meta-Reasoning Auditor**: Evaluates all three proposed DAG plans against strict criteria (no missing prerequisite dependencies, no unassigned write locks, complete file coverage). Returns an `APPROVED` or `NEEDS_REVISION` verdict.
+5. **Consolidator Agent**: Reconciles the three proposals and audit report into a single canonical `TaskDAG`.
+
+### 3.3. Execution Engine & Concurrent Batch Dispatcher
+
+The `DagExecutor` processes the finalized `TaskDAG` batch by batch:
+1. **Dependency Resolution**: A batch `B_k` is eligible for execution only when all tasks in `dependsOn` for all nodes in `B_k` have achieved `TaskStatus = "DONE"`.
+2. **Parallel Task Spawning**: All `WORKER` tasks in batch `B_k` are launched concurrently using `Promise.all()`.
+3. **Batch Verification Barrier**: The batch executor waits until every worker in `B_k` completes before invoking the batch's `MANAGER` agent.
+
+### 3.4. FileLockManager: Concurrency Control & Deadlock Prevention
+
+When multiple Worker agents run in parallel within the same batch, race conditions and file corruption can occur if two workers attempt to modify the same file simultaneously.
+
+OVAN resolves this using **`FileLockManager`** (`src/executor/file_lock_manager.ts`):
+- **Lock Acquisition (`acquireLock`)**: Before a Worker agent writes to or AST-transforms any file listed in its `filesToWrite` manifest, it must request an exclusive lock.
+- **FIFO Lock Queuing**: If a file is currently locked by another agent, the requesting agent's lock call returns a Promise that is queued until the lock is released.
+- **Deadlock Detection Algorithm**: `FileLockManager` maintains an in-memory wait-for graph (`heldLocks` and `lockQueues`). If Agent $A$ holds File $X$ and waits for File $Y$, while Agent $B$ holds File $Y$ and waits for File $X$, `FileLockManager` detects the cycle, rejects the latest acquisition with a `DeadlockError`, emits a `lock_deadlock` event over SSE, and triggers an automated batch rollback.
+
+### 3.5. Worker Agents: Autonomous ReAct Loops & Tool Suite
+
+Each `WorkerAgent` (`src/executor/worker_agent.ts`) executes an autonomous ReAct loop (Reasoning + Acting) with access to specialized tools:
+
+#### 1. AST-Aware Code Tools (`src/tools/ast_tools.ts`)
+Instead of performing fragile regular-expression or string-replacement edits on source files, OVAN uses AST (Abstract Syntax Tree) transformation tools powered by TypeScript AST parsing:
+- `ast_replace_function`: Replaces or updates specific function definitions by AST identifier.
+- `ast_insert_import`: Safely inserts ES6/CommonJS import statements at the correct AST module header position without duplicating existing imports.
+- `ast_add_property`: Modifies class structures, interfaces, and object literals safely.
+
+#### 2. Safe File Operation Tools (`src/tools/file_tools.ts`)
+- `read_file_content`: Reads raw file contents with line range support.
+- `write_file_content`: Writes new files or overwrites existing ones (automatically acquiring `FileLockManager` locks).
+- `list_directory`: Recursively inspects file tree structures.
+
+#### 3. Terminal Execution Tools (`src/tools/terminal_tools.ts`)
+- `execute_terminal_command`: Runs shell commands (`npm test`, `tsc`, `python`, etc.) in the workspace directory with streaming stdout/stderr buffers, timeout guards, and exit status reporting.
+
+#### 4. Browser Automation Tools (`src/tools/browser_tools.ts`)
+- `browser_navigate`: Launches a Playwright headless browser instance to navigate to local web applications (`http://localhost:3000`).
+- `browser_click` / `browser_type`: Interacts with live DOM elements.
+- `browser_screenshot`: Captures rendered visual states for multi-modal DOM verification.
+
+### 3.6. Manager Agents: Outcome Modeling & Sandbox Verification
+
+`ManagerAgent` (`src/executor/manager_agent.ts`) acts as the quality assurance supervisor for a completed batch:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 1: PRE-BATCH OUTCOME MODELING                                     │
+│ Manager inspects batch tasks & formulates a strict success model.       │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ (Workers Execute Batch)
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 2: MULTI-MODAL VERIFICATION & ACTIVE FIX APPLICATION              │
+│ Manager runs terminal tests, inspects AST syntax, checks browser DOM.  │
+│ If flaws are found → Manager directly edits files to fix them.           │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 3: FINAL VERDICT                                                  │
+│ Outputs PASS (proceed to next batch) or FAIL (trigger batch rollback). │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Pre-Batch Outcome Modeling**: Before workers launch, the Manager reviews the batch manifest and formulates an explicit expectation model ("*Files X and Y must export interface Z; terminal command `npm test` must exit with 0*").
+2. **Multi-Modal Verification**: Once all workers finish, the Manager executes ground-truth verification: running terminal build/test suites, inspecting code ASTs, and loading browser pages.
+3. **Active Fix Application**: If a worker's output contains a minor bug or syntax error, the Manager does not merely report failure. It actively invokes AST tools and file writers to repair the code inline.
+4. **Final Verdict**: Outputs a `ManagerVerdict` (`PASS` or `FAIL`). On `PASS`, the executor advances to the next batch. On `FAIL`, tasks marked `rollbackOnFailure` trigger a batch state reset.
+
+### 3.7. Documentation Agent & Archival Packaging
+
+When all DAG batches reach `DONE` status, `DocumentationAgent` (`src/executor/documentation_agent.ts`) executes:
+1. Inspects all modified files, worker console logs, and manager verdicts.
+2. Generates an exhaustive, production-grade `walkthrough.md` report.
+3. Packages the workspace modifications into a downloadable `.zip` archive via `/api/download/:jobId`.
 
 ---
 
-## 10. Future Evolution & Roadmap
+## 4. Part 3: Backend REST API & Real-Time SSE Telemetry
 
-Obsidian is an experimental baseline for AGI-level reasoning structures. Future implementations will include:
-*   **Local LLM Swarms:** Abstracting the `@google/genai` dependency to allow integration with Ollama or vLLM, enabling the cognitive loop to run entirely offline on local clusters.
-*   **Persistent Archival Memory:** Integrating a Vector Database (e.g., ChromaDB) into the Archival Answerer, allowing the agent to remember and retrieve thoughts from sessions that occurred months ago.
-*   **Procedural Sandboxing:** Providing the "Procedural" agent with a secure Docker container to execute and validate the code it theorizes before the Synthesizer finalizes the report.
+The backend server (`server.ts`) is built on Express and Node.js (>=20.0.0). It exposes REST endpoints and real-time Server-Sent Events (SSE) channels.
+
+### 4.1. Key API Endpoints
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/think` | `POST` | Initiates a multidimensional thinking session. Streams `ThoughtStep` events via SSE. |
+| `/api/provider` | `GET` | Returns current active AI provider (`gemini` or `deepseek`). |
+| `/api/set-provider` | `POST` | Dynamically switches runtime AI provider between `gemini` and `deepseek`. |
+| `/api/cache-stats` | `GET` | Returns real-time DeepSeek prompt cache performance, hit/miss tokens, and cost savings. |
+| `/api/instruct` | `POST` | Queues a mid-session priority instruction into an active reasoning loop. |
+| `/api/interactive-response` | `POST` | Submits human user input when a step transitions to `Dimension.INTERACTIVE`. |
+| `/api/execute-report` | `POST` | Accepts a final thinking report and triggers the 5-Agent Planning Swarm & DAG Executor. |
+| `/api/execute-events/:jobId` | `GET` | SSE endpoint streaming real-time execution DAG events (`batch_started`, `worker_tool_call`, `file_locked`, `manager_verdict`, etc.). |
+| `/api/download/:jobId` | `GET` | Downloads the generated workspace archive (.zip) for a completed job. |
+
+### 4.2. Dual SSE Protocol Architecture
+
+OVAN utilizes two independent Server-Sent Event streaming protocols:
+
+#### 1. Thinking Stream Protocol (`/api/think`)
+Streams cognitive progress markers to the frontend as thinking unfolds:
+- `event: status`: Status updates ("*Questioner generating prompt...*", "*Triad answering in parallel...*").
+- `event: step`: Complete serialized `ThoughtStep` object.
+- `event: retry`: Neural congestion warning backoff notifications (`429`/`503`).
+- `event: cache_stats`: Real-time prompt cache telemetry updates.
+- `event: complete`: Final synthesized report and neural voice audio stream.
+
+#### 2. Execution Stream Protocol (`/api/execute-events/:jobId`)
+Streams fine-grained DAG execution metrics:
+- `job_started` / `planning_started` / `planning_proposal` / `planning_audit` / `dag_ready`
+- `batch_started` / `worker_started` / `worker_tool_call` / `worker_tool_result` / `worker_done`
+- `file_locked` / `file_released` / `lock_deadlock`
+- `manager_started` / `manager_outcome_model` / `manager_verifying` / `manager_fix_applied` / `manager_verdict`
+- `batch_done` / `job_complete` / `job_failed`
 
 ---
 
-## 11. Conclusion & License
+## 5. Part 4: Frontend Architecture & Cyberpunk UI
 
-The **Obsidian Thinking Machine** represents a paradigm shift from conversational AI chatbots to autonomous cognitive processing networks. By enforcing dimensional quotas, instantiating persona-driven swarm debates, and streaming the entire recursive process via an immersive UI, the system transforms the "black box" of LLM thought into a transparent, highly analytical, and verifiable engine of creativity.
+The frontend (`src/App.tsx`, `src/main.tsx`) is built with React 19, Vite 6, TailwindCSS 4, and Framer Motion. Styled as a cyberpunk **"Neural Void"**, it provides live visualization of both cognitive reasoning and DAG execution.
 
-***
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          OVAN NEURAL VOID DASHBOARD                         │
+├───────────────────────────────┬─────────────────────────────────────────────┤
+│ MULTIDIMENSIONAL GRAPH VIEW   │ COGNITIVE CHRONICLE / EXECUTION MONITOR     │
+│ - Interactive 3D Node Map     │ - Live Step Stream (Question/Triad/Monologue)│
+│ - Dimensional Quota Counters  │ - Real-time Execution DAG Progress Bar       │
+│ - Active Provider Indicator   │ - Worker ReAct Tool Calls & Terminal Logs   │
+│ - Live Cache Savings Gauge    │ - Manager Verification Verdict Cards        │
+└───────────────────────────────┴─────────────────────────────────────────────┘
+```
+
+### 5.1. Core UI Components
+
+- **Multidimensional Graph View**: An interactive graph node visualizer mapping cognitive steps across dimensions, showing parent-child step relationships and cluster transitions.
+- **Cognitive Chronicle**: Displays real-time thought steps, rendered with Markdown and LaTeX math formulas (`katex`). Includes collapsible views for the Thinking Agent's raw internal monologue (`<thinking>`).
+- **Execution DAG Dashboard**: Renders live execution job status, showing batch progress bars, active worker ReAct tool calls, real-time file locking indicators, and Manager verification verdicts.
+- **Mid-Session Instruction Panel**: Allows users to inject priority guidance (`/api/instruct`) directly into the controller loop while reasoning is active.
+- **Provider & Cache Gauge**: Displays runtime provider status (`Gemini` vs `DeepSeek`), sticky key status, total hit/miss prompt tokens, and estimated cost savings.
+
+---
+
+## 6. Verification & System Test Suite
+
+OVAN includes an automated test suite verifying both key components and end-to-end integration:
+
+- `test_sandbox.ts`: Validates isolated Python and JavaScript code sandbox execution (`runCodeInSandbox`).
+- `test_diag.ts`: Diagnostic verification of API provider network connectivity and key rotator status.
+- `test_all_keys.ts` / `test_final_keys.ts`: Validates rate limits and authorization for all configured API keys.
+- `test_e2e.ts`: Full end-to-end test verifying the multi-step cognitive loop, intent synthesis, 5-agent DAG planning swarm, worker ReAct execution, file lock manager concurrency, and manager verification.
+
+To run the verification suite:
+```bash
+npx tsx test_sandbox.ts
+npx tsx test_e2e.ts
+```
+
+---
+
+## 7. Technical Specifications Summary Table
+
+| Subsystem | Component | Implementation | Key Interfaces & Files |
+| :--- | :--- | :--- | :--- |
+| **Cognitive Layer** | Providers | Gemini API SDK & DeepSeek OpenAI API | `src/lib/engine.ts`, `src/lib/deepseek_engine.ts` |
+| | Dimensions | 9 Cognitive Dimensions with Anti-Overreach Rules | `src/lib/types.ts` (`Dimension` enum) |
+| | Reasoning Swarm | 6-Agent Sequential/Parallel Topology per Step | `Questioner`, `Internal`, `Archival`, `External`, `Meta`, `ThinkingAgent` |
+| | Cache Optimization | Unified Shared History Prefix & Sticky Key Affinity | `DeepSeekKeyRotator`, `globalCacheTracker` |
+| | Self-Evolution | Prompt Mutation Memory Extraction | `src/lib/prompt_memory.ts` |
+| **Harness Layer** | Planning Swarm | 5-Agent Consensus DAG Generator | `src/planning/planning_step.ts`, `planning_prompts.ts` |
+| | Execution Engine | Parallel Batch Dispatcher & Task DAG | `src/executor/dag_executor.ts`, `dag_types.ts` |
+| | Concurrency Control| `FileLockManager` (Exclusive Locks & Deadlock Detection)| `src/executor/file_lock_manager.ts` |
+| | Worker Agents | ReAct Loop with AST, File, Terminal & Browser Tools | `src/executor/worker_agent.ts`, `src/tools/*` |
+| | Manager Agents | Outcome Modeling, Sandbox Verification & Inline Fixes | `src/executor/manager_agent.ts` |
+| **Server & UI** | Backend Server | Express REST & Dual SSE Telemetry Engine | `server.ts` |
+| | Client Dashboard | React 19 + Vite 6 + TailwindCSS 4 + Framer Motion | `src/App.tsx` |
+
+---
+
 *“In the silence of the neural void, the most profound structures are built.”*
-*
