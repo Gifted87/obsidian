@@ -1,3 +1,19 @@
+> **🚀 New: The OVAN Agent Harness has just been added.**
+>
+> OVAN is no longer just a thinking machine — it now executes what it thinks. The agent harness takes the final reasoned plan from the cognitive engine and carries it out autonomously, end to end. Here are the seven core capabilities:
+>
+> 1. **5-Agent Consensus Planning Swarm** — A Technical Architect, Dependency Analyst, Execution Sequencer, Meta-Reasoning Auditor, and Consolidator deliberate on every task before a single line of code is touched, producing a conflict-free Directed Acyclic Graph (DAG) of work.
+> 2. **Parallel Batch Execution** — Tasks with no shared dependencies run simultaneously, with the executor only advancing to the next batch once the current one is fully verified.
+> 3. **Autonomous Worker Agents (ReAct Loops)** — Each worker reasons and acts in a tight loop, using AST-aware code transformers, terminal runners, file tools, and a Playwright browser controller to complete its assigned task.
+> 4. **FileLockManager with Deadlock Detection** — Parallel workers compete for files safely. Exclusive locks are queued per-file in FIFO order, and the engine automatically detects and breaks circular wait cycles before they deadlock a batch.
+> 5. **Manager Agents with Outcome Modeling** — Before a batch starts, the Manager formulates an exact model of what success looks like. After workers finish, it verifies against that model using live terminal execution, AST inspection, and browser screenshots — and applies inline fixes if anything falls short.
+> 6. **AST-Aware Code Editing** — All code modifications operate at the syntax-tree level, not string replacement, ensuring edits are structurally valid regardless of formatting or whitespace.
+> 7. **Real-Time SSE Execution Dashboard** — Every event — batch starts, worker tool calls, file locks acquired and released, manager verdicts, and job completion — streams live to the frontend over Server-Sent Events.
+>
+> For the full technical breakdown, see [documentation.md](documentation.md).
+
+---
+
 **OVAN AGENT HARNESS: Building a Thinking Machine**
 
 Einstein was not considered a genius because he knew more physics than his contemporaries. In fact, there were physicists of his era with broader technical knowledge. What set Einstein apart was something harder to name — the architecture of his reasoning. He asked different questions, approached problems from unexpected angles, and crucially, he turned his thinking back on itself. He reasoned *with* what he knew in ways others did not.
