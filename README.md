@@ -1,8 +1,10 @@
-**OVAN: Building a Thinking Machine**
+**OVAN: Building a Thinking Machine That Can Act**
 
 Einstein was not considered a genius because he knew more physics than his contemporaries. In fact, there were physicists of his era with broader technical knowledge. What set Einstein apart was something harder to name — the architecture of his reasoning. He asked different questions, approached problems from unexpected angles, and crucially, he turned his thinking back on itself. He reasoned *with* what he knew in ways others did not.
 
 This tells us something important about intelligence: it is not merely a function of knowledge. It is shaped by the structure of the thinking process — what questions are asked, in what order, from what angles, and with what degree of self-correction.
+
+But there is a second thing worth noticing about Einstein. He did not just think. He published. He corresponded. He built physical intuition pumps and ran thought experiments that others later converted into instruments and theories. The thinking was inseparable from the doing. Neither half was the point. The point was the full loop.
 
 This insight is the foundation of OVAN.
 
@@ -12,15 +14,25 @@ This insight is the foundation of OVAN.
 
 We already have systems with extraordinary knowledge. A single large language model knows more than any single human being — more history, more science, more literature, more code. Knowledge, in that sense, is a solved problem.
 
-What has not been solved is the *process* of thinking. If intelligence = knowledge × reasoning structure, and LLMs already dominate on knowledge, then closing the gap on reasoning structure should produce something that exceeds human intelligence. Since intelligence is shaped by how one moves through a problem space — The evidence from history's greatest minds suggests it is — then the next frontier is not giving AI more information. It is giving AI a better way to think.
+What has not been solved is the *process* — both thinking and acting.
 
-OVAN is my first attempt to build that.
+When you give a standard AI a complex problem, it does two things almost simultaneously: it thinks, and it acts. There is no real separation between the two. The model predicts the next token. Those tokens become code, or a plan, or an answer. The thinking and the acting collapse into a single, unreflected pass. The problem is not that the model is stupid. The problem is that it has no room to be wrong before it commits.
+
+Real intelligence does not work this way. A good engineer does not type the first line of code before understanding the problem. A good strategist does not issue the first order before modelling the adversary. The thinking happens first, seriously and at depth, and only then does the acting begin — informed by everything the thinking produced.
+
+OVAN is built around that separation. Think first. Act second. And make both of those halves as rigorous as possible.
 
 ---
 
 **What OVAN Is**
 
-OVAN is a multi-agent thinking system designed to mirror the structure of deep human reasoning. At each step of the thinking process, six agents work in sequence, each doing a distinct job.
+OVAN is a unified system with two inseparable halves: a multidimensional reasoning engine and an autonomous execution engine. Neither half is optional. Neither half is more important than the other. Together, they form a complete loop from problem to solution.
+
+The reasoning engine is what handles the thinking. The execution engine is what handles the doing. The point is that the thinking informs the doing — not as a rough summary or a vague intention, but as a precise, deeply reasoned specification that the execution engine can act on with confidence.
+
+**The Reasoning Half**
+
+At each step of the thinking process, six agents work in sequence, each doing a distinct job.
 
 **The Questioner** opens every step. It reads the full reasoning history and generates a single, precise, probing question — framed for the dimension being explored. Its only job is to ask the right question. It is explicitly forbidden from answering it.
 
@@ -32,9 +44,9 @@ OVAN is a multi-agent thinking system designed to mirror the structure of deep h
 
 **The Meta Reasoning Agent** then reads all three answers and audits them — checking for factual accuracy, logical consistency, internal contradictions, and hallucinations. It does not replace any answerer. Its job is to produce a rigorous critique that the next agent uses as input.
 
-**The Thinking Agent** — the main thinker — does the hardest work. It takes the three initial perspectives, the meta-reasoning audit, and the original question, and engages in an exhaustive internal monologue: questioning premises, reconciling contradictions, playing devil's advocate, and working through the logic step by step. Only after this monologue does it produce a final consolidated insight — the output that gets passed to the controller.
+**The Thinking Agent** — the main thinker — does the hardest work. It takes the three initial perspectives, the meta-reasoning audit, and the original question, and engages in an exhaustive internal monologue: questioning premises, reconciling contradictions, playing devil's advocate, and working through the logic step by step. Only after this monologue does it produce a final consolidated insight.
 
-**The Controller** reads that consolidated insight alongside the full reasoning history and decides what to do next: which dimension to explore, why, and what the intent of the next step should be. When it judges that sufficient depth has been reached, it terminates the thinking loop and passes everything to the synthesizer.
+**The Controller** reads that consolidated insight alongside the full reasoning history and decides what to do next: which dimension to explore, why, and what the intent of the next step should be. When it judges that sufficient depth has been reached, it terminates the thinking loop and passes everything — all of it, the full structured trace of reasoning — to the execution engine.
 
 What gives this structure its reach is the framework of nine thinking dimensions — what I call the dimensions of cognition — through which the controller navigates:
 
@@ -50,45 +62,31 @@ What gives this structure its reach is the framework of nine thinking dimensions
 
 Each dimension has strict anti-overreach rules. The Consequence agent does not propose solutions. The Grounding agent does not explore speculative scenarios. The Wonder agent does not analyze real consequences. The boundaries are enforced so that each dimension contributes something the others cannot, and the full picture only emerges across the whole sequence.
 
-The controller begins in one dimension. The questioner drives the inquiry. The three answerers respond. The meta reasoning agent audits. The thinking agent consolidates. The controller evaluates and chooses the next dimension. This cycle continues until the controller judges that sufficient depth has been reached — at which point, OVAN begins synthesizing a response.
+**The Execution Half**
+
+When the reasoning loop ends, the synthesized output does not become a piece of text to read. It becomes a specification to act on.
+
+A second swarm of five planning agents reads the specification and produces a structured task graph — a DAG — that maps out every piece of work needed, in what order, with what dependencies, and with what safeguards. A technical architect, a dependency analyst, an execution sequencer, a meta-reasoning auditor, and a consolidator each propose their interpretation of the plan. Their proposals are reconciled into one.
+
+Autonomous worker agents then carry out the tasks in parallel. Each worker is a ReAct loop — it reasons, acts, observes the result, and reasons again. It can read and write files, run terminal commands, edit code at the syntax-tree level rather than the string level, and control a live browser to verify what it built actually works in a real environment.
+
+Workers in the same batch can edit the same files safely, because a file lock manager coordinates access at the lock level, detects deadlocks before they happen, and rolls back batches that cannot be resolved cleanly.
+
+When a batch finishes, a manager agent steps in. Before the batch even began, the manager had already formulated a precise model of what success looks like. Now it runs that verification: executing build scripts, inspecting code structure, loading the application in a browser. If the workers made a mistake, the manager does not just report it — it fixes it directly, then signs off.
+
+That is the full loop. Thinking, planning, executing, verifying.
 
 ---
 
 **Was It Successful?**
 
-OVAN version 1 is still highly experimental. The current answering agents are limited — they draw only from training data and shallow web searches. Future versions will equip them with richer tools for gathering information, tools like images and videos research, performing simulations, using tools, deep internet research and even performing experiments, and more. The architecture itself is still being refined.
+OVAN version 1 is still highly experimental. The reasoning agents are limited — they draw from training data, shallow web searches, and code sandboxes, but not yet from images, video, deep simulation, or live experimental data. The architecture is still being refined.
 
-But the core hypothesis — that structuring the *process* of thinking, not just the store of knowledge, produces meaningfully better reasoning — has shown early promise. The reports generated by OVAN reflect a depth and coherence that flat, single-pass generation does not consistently achieve. You can explore reports generated by the OVAN thinking machine here: [github.com/Gifted87/OBSIDIAN-ARTIFACTS](https://github.com/Gifted87/OBSIDIAN-ARTIFACTS)
+But the core hypothesis — that separating the process of thinking from the process of acting, and making both of them rigorous, produces meaningfully better outcomes than collapsing the two into a single pass — has shown early promise. The reports generated by OVAN reflect a depth and coherence that flat, single-pass generation does not consistently achieve. You can explore reports generated by the OVAN thinking machine here: [github.com/Gifted87/OBSIDIAN-ARTIFACTS](https://github.com/Gifted87/OBSIDIAN-ARTIFACTS)
 
-The system is not yet what it will become. But it is a first, serious step toward something worth building: a machine that does not merely know, but genuinely *thinks*.
+The system is not yet what it will become. But it is a first, serious step toward something worth building: a machine that does not merely know, but genuinely *thinks* — and then genuinely *acts* on what it thought.
 
 The goal, ultimately, is superintelligence — not through brute scale, but through better architecture. OVAN is the beginning of that search.
-
----
-
-**OVAN as an Agent Harness**
-
-The thinking machine is only half of what OVAN is.
-
-The second half is what happens after thinking ends. Once OVAN has reasoned through a problem and produced a final report, that report is not just text — it becomes the specification for action. OVAN contains a full autonomous execution engine that can take a reasoned plan and carry it out, end to end, without human intervention at each step.
-
-This is what makes OVAN an agent harness, not just a reasoning system.
-
-The execution side of OVAN is built around five components:
-
-**The Planning Swarm** breaks the specification into a structured task graph — a DAG — through a deliberation between five specialized planning agents. A technical architect, a dependency analyst, an execution sequencer, a meta-reasoning auditor, and a final consolidator each contribute their perspective. Their proposals are reconciled into a single, conflict-free execution plan.
-
-**The Worker Agents** carry out individual tasks in parallel. Each worker is an autonomous ReAct loop — it reads files, writes code, runs commands, browses the web, and verifies its own output. Workers in the same batch can edit the same files safely, because the system manages file access at the lock level.
-
-**The Manager Agents** do not execute tasks themselves. They watch. Before a batch begins, a manager formulates an exact model of what success looks like. After the batch completes, it verifies the workers' output against that model — using terminal execution, code parsing, and live browser inspection — and fixes anything that falls short before signing off.
-
-**The Tooling Layer** is what gives agents their reach. Browser automation through Playwright. AST-aware code editing that modifies syntax trees rather than strings. Terminal execution with streaming logs. File operations with concurrency control.
-
-**The Provider Router** keeps the system running continuously. OVAN supports both Gemini and DeepSeek, switches between them at runtime, rotates across pools of API keys to avoid rate limits, and tracks prefix cache performance to minimize cost across long multi-step sessions.
-
-What this means in practice: you can hand OVAN a complex problem — build this application, refactor this codebase, investigate this architecture — and walk away. The cognitive engine reasons through the problem. The planning swarm structures the work. The worker agents execute it. The manager agents verify it. The result is delivered.
-
-That is the full loop. Thinking, planning, executing, verifying.
 
 ---
 
@@ -229,7 +227,7 @@ OVAN is open source and released under the [MIT License](LICENSE).
 
 **Build On This**
 
-OVAN is not a finished product. It is an open foundation — a first serious attempt to show that the architecture of thinking matters as much as the store of knowledge, and that thinking and doing can be unified in a single system. Version 1 is deliberately minimal. The agents are limited. The dimensions are a starting point, not a ceiling. The whole point is that someone, somewhere, should take this further than I can alone.
+OVAN is not a finished product. It is an open foundation — a first serious attempt to show that the architecture of thinking matters as much as the store of knowledge, that thinking and acting are stronger together than either is alone, and that the gap between them can be closed by a system that treats both with equal seriousness. Version 1 is deliberately minimal. The agents are limited. The dimensions are a starting point, not a ceiling. The whole point is that someone, somewhere, should take this further than I can alone.
 
 If you are a developer, this is an invitation.
 
@@ -237,18 +235,18 @@ The architecture is simple enough to understand in an afternoon and open enough 
 
 **Richer answering agents** — agents that can browse the web deeply, analyse images and videos, run code, perform simulations, query databases, and call external APIs. The current agents are shallow. The framework is ready for agents that are not.
 
-**Better controller logic** — the controller that decides which thinking dimension to explore next is the heart of the system. Smarter routing, learned heuristics, or even a trained model for dimension selection could dramatically improve output quality.
+**Better controller logic** — the controller that decides which thinking dimension to explore next is the heart of the reasoning half. Smarter routing, learned heuristics, or even a trained model for dimension selection could dramatically improve output quality.
 
-**New cognitive dimensions** — the eight dimensions I defined are not the only possible ones. There may be better decompositions. Ethical reasoning, probabilistic thinking, temporal analysis — the design space is wide open.
+**New cognitive dimensions** — the nine dimensions are not the only possible decomposition. There may be better ones. Ethical reasoning, probabilistic thinking, temporal analysis — the design space is wide open.
 
-**Memory and context** — OVAN currently thinks without memory. An agent that can recall past reasoning sessions, build a persistent model of a domain, or recognise when it has solved a similar problem before would be a qualitatively different thing.
+**Memory and context** — OVAN currently thinks and acts without persistent memory. An agent that can recall past reasoning sessions, build a model of a domain over time, or recognise when it has solved a similar problem before would be a qualitatively different thing.
 
-**Multi-model architectures** — the provider router already supports Gemini and DeepSeek. A version that routes different question types to different specialist models — mixing reasoning models, vision models, code models — could be far more capable.
+**Multi-model architectures** — the provider router already supports Gemini and DeepSeek. A version that routes different question types to different specialist models — mixing reasoning models, vision models, code models — across both halves of the system could be far more capable.
 
-**Evaluation frameworks** — how do you measure whether a thinking machine is actually thinking better? Building rigorous benchmarks and evaluation pipelines for this kind of system is unsolved and important work.
+**Evaluation frameworks** — how do you measure whether a thinking machine is actually thinking better? How do you measure whether an execution engine is actually executing more reliably? Building rigorous benchmarks and evaluation pipelines for this kind of system is unsolved and important work.
 
 The repository is open. The licence is MIT. Take it, fork it, break it, rebuild it. If you build something interesting on top of this architecture, I want to know about it.
 
-The goal is not that OVAN wins. The goal is that the idea — that reasoning structure matters — gets tested, refined, and taken as far as it can go. That requires more than one person.
+The goal is not that OVAN wins. The goal is that the idea — that reasoning structure matters, and that thinking and acting together produce something neither can produce alone — gets tested, refined, and taken as far as it can go. That requires more than one person.
 
 Build something.
