@@ -11,3 +11,17 @@ coverage/
 .cdms_model/
 .procoder/
 compiled_codebase.txt
+
+# Runtime-generated artifacts
+sandbox_workspace/
+memory/sessions/
+public/downloads/
+logs/
+reports/
+
+# Binary / large media assets
+*.zip
+*.glb
+*.wav
+*.wasm
+*.cube

@@ -60,7 +60,10 @@ def compile_codebase_to_text(root_dir, output_file):
         "venv311",
         "env",
         "venv",
-        "dist"
+        "dist",
+        "memory",
+        "sandbox_workspace",
+        "logs"
     }
 
     # Files to specifically ignore (exact matches)
@@ -68,7 +71,9 @@ def compile_codebase_to_text(root_dir, output_file):
         "compiled_codebase.txt", 
         "consolidator.py",
         "package-lock.json",
-        "yarn.lock"
+        "yarn.lock",
+        "README.md",
+        "documentation.md"
     }
 
     file_count = 0

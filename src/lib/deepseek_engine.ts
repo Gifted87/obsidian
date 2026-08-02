@@ -1,16 +1,13 @@
-import { GoogleGenAI, Type, FunctionCallingConfigMode, Modality } from "@google/genai";
+import OpenAI from "openai";
 import { randomUUID } from "crypto";
-import { keyRotator } from "./key_rotator.ts";
 import { Dimension, DIMENSIONS_INFO, ThoughtPart, ThoughtStep, SynthesisResult, CodeRequest, CodeResult, ReasoningGraph, GraphUtils, ControllerDecision, DebateRound } from "./types.ts";
 import { PromptMemory } from "./prompt_memory.ts";
 import { IThinkingEngine } from "./engine_interface.ts";
 import { runCodeInSandbox } from "./sandbox.ts";
 import { SYSTEM_SELF_MODEL } from "./self_model.ts";
 
-const MODEL_NAME = "gemini-flash-lite-latest";
-const FLASH_MODEL = "gemini-flash-lite-latest";
-const CONTROLLER_MODEL = "gemini-flash-lite-latest";
-const TTS_MODEL = "gemini-2.5-flash-preview-tts";
+const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+const DEFAULT_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
 const QUESTIONER_DIMENSION_RULES: Record<Dimension, string> = {
   [Dimension.UNDERSTANDING]: `SYSTEM: You are the QUESTIONER bot in a multi-dimensional thinking system, executing the Understanding dimension.
@@ -414,75 +411,210 @@ YOU ACTION MUST ONLY SATISFY THE PUTPOSE OF YOUR DIMENSION, DONT TRY TO DO THING
   [Dimension.INTENT_SYNTHESIS]: `Distill all reasoning into the final actionable technical directive.`,
   [Dimension.CODE_OBSERVATION]: `Incorporate the code execution observations.`,
 };
-export class ThinkingEngine implements IThinkingEngine {
-  private onRetry?: (message: string) => void;
+
+const executeCodeTool: OpenAI.Chat.Completions.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "execute_code",
+    description: "Request execution of a code snippet directly on the local machine. Use when computation, algorithm verification, data processing, or simulation is needed. You have full internet access and can download any libraries you need (e.g., pip install). Do NOT interact with local project files.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: { type: "string", enum: ["python3", "javascript"], description: "Programming language." },
+        code: { type: "string", description: "Complete, executable source code to run in the sandbox." },
+      },
+      required: ["language", "code"],
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Key rotation for DeepSeek API keys
+// ---------------------------------------------------------------------------
+class DeepSeekKeyRotator {
+  private keys: string[] = [];
+  private index = 0;
+  private initialized = false;
+  private sessionKeyMap = new Map<string, string>();
+
+  private init() {
+    if (this.initialized) return;
+    const raw = process.env.DEEPSEEK_API_KEYS || process.env.DEEPSEEK_API_KEY || "";
+    this.keys = raw.split(",").map((k) => k.trim()).filter(Boolean);
+    if (this.keys.length === 0) {
+      console.warn("[DeepSeekKeyRotator] No DEEPSEEK_API_KEYS found in environment.");
+    }
+    this.initialized = true;
+  }
+
+  getNextKey(sessionId?: string): string {
+    this.init();
+    if (this.keys.length === 0) throw new Error("No DeepSeek API keys configured.");
+    const effectiveSessionId = (sessionId && sessionId.trim()) ? sessionId.trim() : "default_sticky_session";
+    if (!this.sessionKeyMap.has(effectiveSessionId)) {
+      const selected = this.keys[this.index % this.keys.length];
+      this.index++;
+      this.sessionKeyMap.set(effectiveSessionId, selected);
+    }
+    return this.sessionKeyMap.get(effectiveSessionId)!;
+  }
+
+  hasKeys(): boolean {
+    this.init();
+    return this.keys.length > 0;
+  }
+}
+
+export const deepSeekKeyRotator = new DeepSeekKeyRotator();
+
+// ---------------------------------------------------------------------------
+// Helper: build a fresh OpenAI client pointing at DeepSeek with session key affinity
+// ---------------------------------------------------------------------------
+function makeClient(sessionId?: string): OpenAI {
+  return new OpenAI({
+    apiKey: deepSeekKeyRotator.getNextKey(sessionId),
+    baseURL: DEEPSEEK_BASE_URL,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Helper: Extract code block from text
+// ---------------------------------------------------------------------------
+function extractCode(text: string): string | null {
+  const match = text.match(/```(?:python|javascript|typescript|node|js|ts|py)?\n([\s\S]*?)```/i);
+  if (match) return match[1].trim();
+  // Fallback: if no backticks but looks like code
+  if (text.includes("def ") || text.includes("function ") || text.includes("import ")) {
+    return text.trim();
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Cache Tracking & Telemetry
+// ---------------------------------------------------------------------------
+export interface CacheStats {
+  totalPromptTokens: number;
+  totalHitTokens: number;
+  totalMissTokens: number;
+  overallSavingsPct: number;
+  lastCallHitTokens: number;
+  lastCallMissTokens: number;
+  lastCallSavingsPct: number;
+  callCount: number;
+}
+
+export class CacheTracker {
+  private totalPromptTokens = 0;
+  private totalHitTokens = 0;
+  private totalMissTokens = 0;
+  private callCount = 0;
+
+  recordUsage(label: string, usage: any): CacheStats | null {
+    if (!usage) return null;
+    const hit = usage.prompt_cache_hit_tokens ?? 0;
+    const miss = usage.prompt_cache_miss_tokens ?? (usage.prompt_tokens ?? 0) - hit;
+    const total = usage.prompt_tokens ?? 0;
+    const lastSavedPct = total > 0 ? Math.round((hit / total) * 100) : 0;
+
+    this.totalPromptTokens += total;
+    this.totalHitTokens += hit;
+    this.totalMissTokens += miss;
+    this.callCount++;
+
+    const overallSavingsPct = this.totalPromptTokens > 0
+      ? Math.round((this.totalHitTokens / this.totalPromptTokens) * 100)
+      : 0;
+
+    console.log(
+      `[DeepSeekCache:${label}] Call #${this.callCount} | Hit: ${hit} (${lastSavedPct}%) | Miss: ${miss} | Total: ${total} || Cumulative: Hit: ${this.totalHitTokens}/${this.totalPromptTokens} (${overallSavingsPct}% saved)`
+    );
+
+    return {
+      totalPromptTokens: this.totalPromptTokens,
+      totalHitTokens: this.totalHitTokens,
+      totalMissTokens: this.totalMissTokens,
+      overallSavingsPct,
+      lastCallHitTokens: hit,
+      lastCallMissTokens: miss,
+      lastCallSavingsPct: lastSavedPct,
+      callCount: this.callCount
+    };
+  }
+
+  getStats(): CacheStats {
+    const overallSavingsPct = this.totalPromptTokens > 0
+      ? Math.round((this.totalHitTokens / this.totalPromptTokens) * 100)
+      : 0;
+    return {
+      totalPromptTokens: this.totalPromptTokens,
+      totalHitTokens: this.totalHitTokens,
+      totalMissTokens: this.totalMissTokens,
+      overallSavingsPct,
+      lastCallHitTokens: 0,
+      lastCallMissTokens: 0,
+      lastCallSavingsPct: 0,
+      callCount: this.callCount
+    };
+  }
+
+  reset(): void {
+    this.totalPromptTokens = 0;
+    this.totalHitTokens = 0;
+    this.totalMissTokens = 0;
+    this.callCount = 0;
+  }
+}
+
+/**
+ * Module-level singleton CacheTracker.
+ * Persists across all DeepSeekEngine instances for the entire server process lifetime,
+ * giving accurate cumulative cache statistics regardless of how many engine instances
+ * are created per request.
+ */
+export const globalCacheTracker = new CacheTracker();
+
+const STATIC_SYSTEM_PROMPT = `${SYSTEM_SELF_MODEL}\n\nYou are Ovan, an advanced multidimensional reasoning engine. You process complex problems through a series of logical dimensions. The history of the current reasoning session and system context are provided below.`;
+
+// ---------------------------------------------------------------------------
+// DeepSeekEngine
+// ---------------------------------------------------------------------------
+export class DeepSeekEngine implements IThinkingEngine {
+  private model: string;
+  private instanceSessionId = randomUUID();
   /** Stores settled state alongside each dispatched execution promise. */
   private pendingExecutions = new Map<string, { promise: Promise<CodeResult>; result?: CodeResult }>();
 
-  constructor(apiKey?: string, onRetry?: (message: string) => void, onEvent?: (type: string, payload: any) => void) {
-    this.onRetry = onRetry;
+  constructor(
+    model = DEFAULT_MODEL,
+    private onRetry?: (message: string) => void,
+    private onEvent?: (type: string, payload: any) => void
+  ) {
+    this.model = model;
   }
 
-  private get ai(): GoogleGenAI {
-    return new GoogleGenAI({
-      apiKey: keyRotator.getNextKey()
-    });
+  /** Returns the module-level global cache stats (shared across all engine instances). */
+  public getCacheStats(): CacheStats {
+    return globalCacheTracker.getStats();
   }
 
-  private async cachedGenerate(opts: any): Promise<any> {
-    return this.retry(async () => this.ai.models.generateContent(opts));
-  }
-
-  private getContext(graph: ReasoningGraph, windowSize: number = 4): string {
-    const steps = GraphUtils.getAncestorChain(graph, graph.activeHeadId);
-    if (steps.length === 0) return "No history yet.";
-
-    const totalSteps = steps.length;
-    const olderCount = Math.max(0, totalSteps - windowSize);
-
-    return steps
-      .map((s, i) => {
-        const isOlder = i < olderCount;
-
-        if (isOlder) {
-          const summaryText = s.controllerDecision?.reasoning || s.consolidatedInsight || s.answers.internal;
-          return `Step ${i + 1} [Dimension: ${s.dimension}] (COMPRESSED SUMMARY)\nQuestion: ${s.question}\nController Summary:\n${summaryText}`;
-        }
-
-        let entry = `Step ${i + 1} [Dimension: ${s.dimension}]\nQuestion: ${s.question}\nAnswers:\n- INTERNAL: ${s.answers.internal}\n- ARCHIVAL: ${s.answers.archival}\n- EXTERNAL: ${s.answers.external}\n${s.controllerDecision ? `Controller Decision: ${s.controllerDecision.nextDimension}` : ''}`;
-
-        if (s.codeRequest) {
-          entry += `\nCode Execution Requested: language=${s.codeRequest.language}, status=${s.codeRequest.status}`;
-        }
-        if (s.codeResult) {
-          entry += `\nCode Observation (ground truth): exitCode=${s.codeResult.exitCode}, elapsedMs=${s.codeResult.elapsedMs}ms\nstdout: ${s.codeResult.stdout.substring(0, 500)}\nstderr: ${s.codeResult.stderr.substring(0, 200)}`;
-        }
-        return entry;
-      })
-      .join("\n\n---\n\n");
-  }
-
+  // ── Retry wrapper ──────────────────────────────────────────────────────────
   private async retry<T>(fn: () => Promise<T>, retries = 7, delay = 3000): Promise<T> {
     try {
       return await fn();
     } catch (error: any) {
-      // Detect transient errors (503 Service Unavailable, 429 Too Many Requests)
-      const errorStr = JSON.stringify(error);
       const isTransient =
-        error?.status === 'UNAVAILABLE' ||
-        error?.code === 503 ||
-        error?.code === 429 ||
-        errorStr.includes('503') ||
-        errorStr.includes('429') ||
-        errorStr.includes('high demand') ||
-        errorStr.includes('UNAVAILABLE');
+        error?.status === 503 ||
+        error?.status === 429 ||
+        error?.code === "ECONNRESET" ||
+        String(error).includes("503") ||
+        String(error).includes("429");
 
       if (retries <= 0) {
-        console.error("Maximum retries exceeded for API call.", error);
+        console.error("[DeepSeekEngine] Max retries exceeded.", error);
         throw error;
       }
 
-      // For transient errors, we use a slightly more aggressive backoff or longer initial wait
       const waitTime = isTransient ? delay : delay;
       const message = `Neural Congestion Detected (${isTransient ? '503/429' : 'Error'}). Retrying in ${Math.round(waitTime / 1000)}s... (${retries} attempts left)`;
 
@@ -490,96 +622,400 @@ export class ThinkingEngine implements IThinkingEngine {
       if (this.onRetry) this.onRetry(message);
 
       await new Promise(resolve => setTimeout(resolve, waitTime));
-      // Exponential backoff: increase delay for next attempt
       return this.retry(fn, retries - 1, waitTime * 1.5);
     }
   }
 
+  // ── Cache-hit logger ───────────────────────────────────────────────────────
+  private logCacheUsage(label: string, usage: any): void {
+    // Use the module-level singleton so stats accumulate across all requests.
+    const stats = globalCacheTracker.recordUsage(label, usage);
+    if (stats && this.onEvent) {
+      this.onEvent('cache_stats', stats);
+    }
+  }
+
+  // ── History builder (Full — no sliding window, no compression, 100% immutable) ──
+  // Every completed step is included in full at a fixed position in the message array.
+  // CRITICAL: History messages DO NOT depend on s.controllerDecision. Once created at the
+  // end of a step, a step's history content NEVER mutates → 100% prefix cache hits.
+  private buildHistory(
+    graph: ReasoningGraph
+  ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+    const steps = GraphUtils.getAncestorChain(graph, graph.activeHeadId);
+    if (steps.length === 0) return [];
+
+    return steps.flatMap((s, i) => {
+      let content =
+        `Step ${i + 1} [Dimension: ${s.dimension}]\n` +
+        `Question: ${s.question}\n` +
+        `Answers:\n` +
+        `- INTERNAL: ${s.answers.internal}\n` +
+        `- ARCHIVAL: ${s.answers.archival}\n` +
+        `- EXTERNAL: ${s.answers.external}` +
+        (s.consolidatedInsight ? `\nConsolidated Insight: ${s.consolidatedInsight}` : "");
+
+      if (s.codeRequest) {
+        content += `\nCode Execution Requested: language=${s.codeRequest.language}, status=${s.codeRequest.status}`;
+      }
+      if (s.codeResult) {
+        content += `\nCode Observation (ground truth): exitCode=${s.codeResult.exitCode}, elapsedMs=${s.codeResult.elapsedMs}ms\nstdout: ${s.codeResult.stdout.substring(0, 500)}\nstderr: ${s.codeResult.stderr.substring(0, 200)}`;
+      }
+
+      return [
+        { role: "user" as const, content },
+        {
+          role: "assistant" as const,
+          content: `Step ${i + 1} recorded.`,
+        },
+      ];
+    });
+  }
+
+
+  // ── Cache-Optimized Message Builder ("Unified Shared History Prefix") ──────────
+  // OPTIMAL MULTI-AGENT CACHE ORDER:
+  //   [sys]      STATIC_SYSTEM_PROMPT          — never changes           → always hits
+  //   [query]    "Core User Query: <userText>" — stable within session   → hits after 1st call
+  //   [...history]                             — shared by ALL agents    → Questioner seeds it;
+  //                                                                        Answerers/Meta/Controller hit it!
+  //   [AGENT]    agent persona & instructions  — agent-specific          → branch point at tail
+  //   [DIR]      dynamic directive             — turn-specific (tiny)    → miss at tail
+  //
+  // WHY HISTORY BEFORE AGENT:
+  // All 7 agents share the exact same [sys] + [query] + [history] prefix.
+  // When Questioner runs at the start of a turn and seeds history into DeepSeek's cache,
+  // all subsequent agents in that turn (Internal, Archival, External, Meta, MainThinker, Controller)
+  // get 90%+ cache hits on the shared history prefix!
+  private makeCacheableMessages(
+    userText: string,
+    agentInstructions: string,
+    history: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
+    additionalContext: string = ""
+  ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: STATIC_SYSTEM_PROMPT },
+      { role: "user", content: `Core User Query: ${userText}` },
+    ];
+
+    // Shared history comes BEFORE agent-specific instructions so all agents share the prefix!
+    messages.push(...history);
+
+    // Agent instructions sit after history — agent-specific branch point.
+    if (agentInstructions) {
+      messages.push({ role: "user", content: `[AGENT PERSONA & INSTRUCTIONS]\n${agentInstructions}` });
+    }
+
+    // Dynamic directive — always misses, kept small.
+    if (additionalContext) {
+      messages.push({ role: "user", content: `[CURRENT TASK DIRECTIVE]\n${additionalContext}` });
+    }
+
+    return messages;
+  }
+
+  // ── Core messages-based completion ────────────────────────────────────────
+  // All calls funnel here. The messages array is structured with stable prefixes first
+  // and dynamic agent directives at the tail.
+  private async completeMessages(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    opts: {
+      tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
+      toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+      thinking?: boolean;
+      cacheLabel?: string;
+      sessionId?: string;
+    } = {}
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    const client = makeClient(opts.sessionId);
+
+    const requestBody: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+      model: this.model,
+      messages,
+      ...(opts.tools ? { tools: opts.tools } : {}),
+    };
+
+    if (opts.tools) {
+      if (opts.thinking) {
+        // DeepSeek reasoning mode supports native tools but strictly rejects 
+        // forced tool_choice. We explicitly enforce "auto".
+        requestBody.tool_choice = "auto";
+      } else {
+        requestBody.tool_choice = opts.toolChoice ?? "auto";
+      }
+    }
+
+    if (opts.thinking) {
+      (requestBody as any).thinking = { type: "enabled" };
+      (requestBody as any).reasoning_effort = "high";
+    }
+
+    const response = await this.retry(() => client.chat.completions.create(requestBody));
+    this.logCacheUsage(opts.cacheLabel ?? "call", (response as any).usage);
+    return response;
+  }
+
+  // ── Simple single-turn completion (backward compat for short calls) ────────
+  private async complete(
+    systemPrompt: string,
+    userText: string,
+    opts: {
+      tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
+      toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+      thinking?: boolean;
+      cacheLabel?: string;
+      sessionId?: string;
+    } = {}
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    return this.completeMessages(
+      this.makeCacheableMessages(userText, systemPrompt, []),
+      opts
+    );
+  }
+
+  // ── JSON extractor (fallback) ──────────────────────────────────────────────
   private extractJson(text: string): string {
-    // Attempt to find the first '{' and last '}' to extract the JSON object
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) {
-      return text.substring(start, end + 1);
-    }
+    if (start !== -1 && end !== -1 && end > start) return text.substring(start, end + 1);
     return text.trim();
   }
 
+  private async runReActLoop(
+    initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    opts: { tools?: OpenAI.Chat.Completions.ChatCompletionTool[]; cacheLabel?: string; thinking?: boolean; sessionId?: string },
+    personaPrefix: string,
+    maxIterations = 5
+  ): Promise<string> {
+    let messages = [...initialMessages];
+    let finalMarkdown = ""; // Accumulate all thoughts, code, and results
+
+    for (let i = 0; i < maxIterations; i++) {
+      const res = await this.completeMessages(messages, opts);
+      const message = res.choices[0]?.message;
+      if (!message) break;
+
+      messages.push(message);
+
+      // Add reasoning monologue content if present from native DeepSeek thinking
+      const reasoningContent = (message as any).reasoning_content;
+      if (reasoningContent && !message.content?.includes('<thinking>')) {
+        finalMarkdown += `<thinking>\n${reasoningContent}\n</thinking>\n\n`;
+      }
+
+      // Add text content if present
+      if (message.content) {
+        finalMarkdown += message.content + "\n\n";
+      }
+
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        const codeCall = message.tool_calls.find((tc: any) => tc.function?.name === 'execute_code');
+        if (codeCall) {
+          try {
+            const args = JSON.parse((codeCall as any).function.arguments);
+            const request: CodeRequest = {
+              id: randomUUID(),
+              language: (args.language === 'javascript' ? 'javascript' : 'python3') as 'python3' | 'javascript',
+              code: args.code,
+              createdAt: Date.now(),
+              status: 'pending'
+            };
+
+            // Append code block to output
+            finalMarkdown += `\`\`\`${request.language}\n${request.code}\n\`\`\`\n\n`;
+
+            if (this.onEvent) {
+              this.onEvent('status', `[${personaPrefix}] Executing ${request.language} code...`);
+            }
+            const result = await runCodeInSandbox(request);
+
+            // Append result to output
+            const toolResultContent = `Exit Code: ${result.exitCode}\nStdout:\n${result.stdout}\nStderr:\n${result.stderr}`;
+            finalMarkdown += `**Execution Result:**\n\`\`\`text\n${toolResultContent}\n\`\`\`\n\n`;
+
+            messages.push({
+              role: "tool",
+              tool_call_id: codeCall.id,
+              content: toolResultContent
+            } as OpenAI.Chat.Completions.ChatCompletionMessageParam);
+
+            if (this.onEvent) {
+              this.onEvent('status', `[${personaPrefix}] Analyzing execution results...`);
+            }
+            continue;
+          } catch {
+            messages.push({
+              role: "tool",
+              tool_call_id: codeCall.id,
+              content: "System Error: Failed to parse tool arguments."
+            } as OpenAI.Chat.Completions.ChatCompletionMessageParam);
+            continue;
+          }
+        }
+      }
+      return finalMarkdown.trim() || "No data available.";
+    }
+    return finalMarkdown.trim() || "Max iterations reached.";
+  }
+
+  // ── runStep ────────────────────────────────────────────────────────────────
   async runStep(
     dimension: Dimension,
     userInput: string | ThoughtPart[],
     reasoningGraph: ReasoningGraph,
-    mode: 'fast' | 'deep' = 'deep',
+    mode: "fast" | "deep" = "deep",
     debateEnabled: boolean = true
   ): Promise<ThoughtStep> {
     const dimensionPurpose = DIMENSIONS_INFO[dimension];
     const previousSteps = GraphUtils.getAncestorChain(reasoningGraph, reasoningGraph.activeHeadId);
-    
-    // 1. Questioner Agent
-    const lastStep = previousSteps.length > 0 ? previousSteps[previousSteps.length - 1] : null;
-    const transitionReasoning = lastStep?.controllerDecision?.reasoning || "Initial start.";
-    
-    const context = this.getContext(reasoningGraph);
+    const lastStep = previousSteps[previousSteps.length - 1];
+    const transitionReasoning = lastStep?.controllerDecision?.reasoning ?? "Initial phase.";
+    const userText = typeof userInput === "string" ? `"${userInput}"` : "[MULTIMODAL INPUT]";
+    const history = this.buildHistory(reasoningGraph);
+    const sessionId = reasoningGraph.metadata?.sessionId;
 
-    const quotaDirective = mode === "deep" 
-        ? `8. QUOTA: Visit EVERY dimension at least 3 times before TERMINATE.`
-        : `8. SUFFICIENCY: Terminate when reasoning is sufficient.`;
-
-    const mathInstruction = "MATHEMATICAL RIGOR: Use mathematics, calculations, and formulas ONLY when strictly necessary for technical precision or clarity. Otherwise, use plain English and clear text to explain concepts.";
-
-    const questionerMutations = PromptMemory.getActive("questioner");
-    const mutationBlock = questionerMutations.length > 0 
-      ? `\n\n[CRITICAL SELF-CORRECTION INSTRUCTIONS FROM PAST REFLECTIONS]\n` + questionerMutations.map((m, i) => `${i+1}. ${m}`).join('\n')
-      : "";
-
-    const activeDimensionRules = QUESTIONER_DIMENSION_RULES[dimension] || `STRICT DIRECTIVE: Your sole purpose in this step is to serve the dimension: ${dimension}.\nDIMENSION GOAL: ${dimensionPurpose}`;
-
-    const questionPrompt = `SYSTEM: You are the QUESTIONER bot in a multi-dimensional thinking system.
-    STRICT DIRECTIVE: Your sole purpose in this step is to serve the dimension: ${dimension}.
-    DIMENSION GOAL: ${dimensionPurpose}
-
-    ${activeDimensionRules}
-    
-    CONTROLLER'S INTENT FOR THIS TRANSITION: "${transitionReasoning}"
-    
-    USER INPUT: ${typeof userInput === 'string' ? `"${userInput}"` : "[MULTIMODAL INPUT DETECTED]"}
-    
-    REASONING HISTORY (CONTEXT):
-    ${context || "No history yet."}
-    
-    TASK: Generate a single, highly specific, probing question that forces the Answerer agents to provide data that fulfills the purpose of the ${dimension} dimension. 
-    Your question MUST directly address and build upon the CONTROLLER'S INTENT provided above to ensure the thought process keeps progressing toward solving the problem and reaching the user's ultimate goal.
-    Your question MUST strictly adhere to the instructions and constraints defined for this dimension.
-    
-    ${dimension === Dimension.INTERACTIVE 
-      ? "IMPORTANT: You are talking DIRECTLY TO THE USER. Phrase your question for the human user to answer."
-      : "IMPORTANT: You are talking internally to the ANSWERER AGENTS (Internal, Archival, External). DO NOT address the user. Frame your question as a technical prompt for the AI Answerers to process. Your question is what guides their thought process to solve the problem."}
-    
-    BE TECHNICAL, CONCISE, AND DIRECT. DO NOT PROVIDE PREAMBLE.${mutationBlock}`;
-
-    const qResponse = await this.cachedGenerate({
-      model: FLASH_MODEL,
-      contents: typeof userInput === 'string' ? questionPrompt : [...userInput, { text: questionPrompt }],
-    });
-    const question = qResponse.text || "What are the core parameters of this intent?";
-
-    // 2. Answerer Agents
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. Questioner
+    // Static system prompt — identical for all Questioner calls → cache hits ✅
+    // ─────────────────────────────────────────────────────────────────────────
+    let question = "Processing...";
     let internal = "";
     let archival = "";
     let external = "";
     let pendingCodeRequest: CodeRequest | undefined;
-    let debateRounds: DebateRound[] | undefined;
-    let debateWasEnabled = false;
     let metaReasoningAudit: string | undefined;
     let thinkingMonologue: string | undefined;
     let consolidatedInsight: string | undefined;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. Questioner
+    // CACHING NOTE: The system prompt (questionerSystem) is kept byte-for-byte
+    // identical across calls for the same dimension. PromptMemory mutation blocks
+    // are moved into the dynamic tail (additionalContext arg) so they never
+    // pollute the stable prefix. This ensures maximum DeepSeek cache hits.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const questionerMutations = PromptMemory.getActive("questioner");
+    // Build mutation block for the TAIL only — never embed in the system prompt.
+    const mutationTailBlock = questionerMutations.length > 0
+      ? `\n\n[CRITICAL SELF-CORRECTION INSTRUCTIONS FROM PAST REFLECTIONS]\n` + questionerMutations.map((m, i) => `${i + 1}. ${m}`).join('\n')
+      : "";
+
+    const activeDimensionRules = QUESTIONER_DIMENSION_RULES[dimension] || `YOUR ROLE: At each step, generate a single, highly specific, probing question that forces the Answerer agents to provide data that fulfills the purpose of the assigned dimension.`;
+
+    // STABLE system prompt — must never include dynamic/session-specific content.
+    const questionerSystem = `${SYSTEM_SELF_MODEL}\n\nSYSTEM: You are the QUESTIONER bot in a multi-dimensional thinking system.
+
+YOUR ROLE: At each step, generate a single, highly specific, probing question that forces the Answerer agents to provide data that fulfills the purpose of the assigned dimension.
+
+${activeDimensionRules}
+
+STRICT RULES:
+- You are FORBIDDEN from answering questions yourself.
+- You MUST build upon the controller's stated intent for this transition to ensure the thought process progresses toward solving the problem and reaching the user's ultimate goal.
+${dimension === Dimension.INTERACTIVE
+        ? "- You are talking DIRECTLY TO THE USER. Phrase your question for the human user to answer."
+        : "- You are talking internally to the ANSWERER AGENTS (Internal, Archival, External). DO NOT address the user. Frame your question as a technical prompt for the AI Answerers to process. Your question is what guides their thought process to solve the problem."}
+- BE TECHNICAL, CONCISE, AND DIRECT. NO PREAMBLE.`;
+
+    // Dynamic tail: dimension directive + mutation block (if any).
+    // Mutations appear here — NOT in the system prompt — preserving cache stability.
+    const questionerDynamicTail =
+      `Now generate ONE highly specific probing question for dimension: ${dimension}\n` +
+      `Dimension goal: ${dimensionPurpose}\n` +
+      `Controller's intent for this transition: "${transitionReasoning}"` +
+      (dimension === Dimension.META_COGNITION
+        ? "\nSince this is Meta-Cognition, your question MUST focus on analyzing the thoughts, logic, or potential gaps in the reasoning history above."
+        : "") +
+      mutationTailBlock;
+
+    const questionerMessages = this.makeCacheableMessages(
+      userText,
+      questionerSystem,
+      history,
+      questionerDynamicTail
+    );
+
+    const qRes = await this.completeMessages(questionerMessages, { cacheLabel: "Questioner", sessionId });
+    question = qRes.choices[0]?.message?.content ?? "What are the core parameters of this intent?";
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2. Answerer agents (parallel) — with execute_code side-channel tool
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (dimension === Dimension.INTERACTIVE) {
       internal = "Awaiting user input...";
       archival = "Awaiting user input...";
       external = "Awaiting user input...";
     } else {
-      const thinkingResult = await this.runThinkingStep(dimension, question, userInput, context, mode);
+      const makeAnswererMessages = (
+        agentRole: "answerer-internal" | "answerer-archival" | "answerer-external",
+        personaInstructions: string
+      ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] => {
+        const mutations = PromptMemory.getActive(agentRole);
+        // CACHING: mutation block goes into the TAIL, not the system prompt.
+        const ansMutationTailBlock = mutations.length > 0
+          ? `\n\n[CRITICAL SELF-CORRECTION INSTRUCTIONS FROM PAST REFLECTIONS]\n` + mutations.map((m, i) => `${i + 1}. ${m}`).join('\n')
+          : "";
+
+        const isExternal = agentRole === "answerer-external";
+        const isArchival = agentRole === "answerer-archival";
+
+        // STABLE system content — no mutation blocks, no dynamic data.
+        const TOOL_USAGE_SUFFIX =
+          `If answering requires running code (computation, verification, simulation), use the execute_code tool.\n` +
+          `The code executes directly on the user's local machine in a dedicated workspace directory. You have full internet access and can download any external libraries you need (e.g., via \`pip install\`) using subprocess in your script. DO NOT interact with or modify the user's local project files.\n` +
+          `Only request code execution when truly necessary — not for every step.\n` +
+          `RICH FORMATTING: Use Markdown (tables, lists, bold) and LaTeX for formulas ($x^2$).\n` +
+          `BE TECHNICAL, CONCISE, AND DIRECT. DO NOT PROVIDE PREAMBLE.`;
+
+        let systemContent = "";
+        if (isExternal) {
+          const externalRules = EXTERNAL_ANSWERER_DIMENSION_RULES[dimension] || personaInstructions;
+          systemContent = `${SYSTEM_SELF_MODEL}\n\n${externalRules}\n\n${TOOL_USAGE_SUFFIX}`;
+        } else if (isArchival) {
+          const archivalRules = ARCHIVAL_ANSWERER_DIMENSION_RULES[dimension] || personaInstructions;
+          systemContent = `${SYSTEM_SELF_MODEL}\n\n${archivalRules}\n\n${TOOL_USAGE_SUFFIX}`;
+        } else {
+          const internalRules = INTERNAL_ANSWERER_DIMENSION_RULES[dimension] || personaInstructions;
+          systemContent = `${SYSTEM_SELF_MODEL}\n\n${internalRules}\n\n${TOOL_USAGE_SUFFIX}`;
+        }
+
+        // Dynamic tail: question directive + mutation block (if any).
+        const answererDynamicTail =
+          `Current dimension: ${dimension}\nDimension goal: ${dimensionPurpose}\nAnswer this question from your specific perspective:\n"${question}"` +
+          ansMutationTailBlock;
+
+        return this.makeCacheableMessages(
+          userText as string,
+          systemContent,
+          history,
+          answererDynamicTail
+        );
+      };
+
+      const internalMsgs = makeAnswererMessages(
+        "answerer-internal",
+        "FOCUS: Internal anatomy of the problem — thermodynamics, constraints, system state, first-principles thinking. Avoid analogies. Look at raw mechanics."
+      );
+      const archivalMsgs = makeAnswererMessages(
+        "answerer-archival",
+        "FOCUS: Collective memory of humanity — historical case studies, analogies, patterns. Ask 'Where have we seen this before?' Provide contextual history."
+      );
+      const externalMsgs = makeAnswererMessages(
+        "answerer-external",
+        "FOCUS: The live world — current market trends, latest research, geographical data, logical verification. Ensure reasoning is not in a vacuum."
+      );
+
+      const thinkingResult = await this.runThinkingStep(
+        dimension,
+        userText as string,
+        history,
+        question,
+        internalMsgs, archivalMsgs, externalMsgs,
+        sessionId
+      );
+
       internal = thinkingResult.initialInternal;
       archival = thinkingResult.initialArchival;
       external = thinkingResult.initialExternal;
@@ -598,6 +1034,10 @@ export class ThinkingEngine implements IThinkingEngine {
       consolidatedInsight
     };
 
+    if (dimension === Dimension.INTERACTIVE) {
+      return step;
+    }
+
     if (dimension === Dimension.META_COGNITION) {
       const mutationProposalSystem = `You are the PROMPT EVOLUTION ENGINE.
   
@@ -613,23 +1053,25 @@ Output an array of at most 3 such mutations. Be specific. Only propose changes t
 are clearly justified by the Meta-Cognition findings. If nothing needs changing, 
 return [].`;
 
-      try {
-        const mutationRes = await this.cachedGenerate({
-          model: FLASH_MODEL,
-          config: { systemInstruction: mutationProposalSystem },
-          contents: `Meta-Cognition findings:\n${step.answers.internal}\n\n${step.answers.archival}\n\n${step.answers.external}`
-        });
+      const mutationMessages = this.makeCacheableMessages(
+        userText as string,
+        mutationProposalSystem,
+        history,
+        `Meta-Cognition findings:\n${step.answers.internal}\n\n${step.answers.archival}\n\n${step.answers.external}`
+      );
+      const mutationRes = await this.completeMessages(mutationMessages, { cacheLabel: "MutationExtraction", sessionId });
 
-        const text = mutationRes.text ?? "[]";
+      try {
+        const text = mutationRes.choices[0]?.message?.content ?? "[]";
         const jsonStr = text.replace(/```json\n/g, "").replace(/```/g, "").trim();
-        const proposed = JSON.parse(this.extractJson(jsonStr));
+        const proposed = JSON.parse(jsonStr);
         for (const m of (proposed as any[])) {
           if (m.agentRole && m.proposedAddition && m.rationale) {
             PromptMemory.addMutation({
               agentRole: m.agentRole,
               proposedAddition: m.proposedAddition,
               rationale: m.rationale,
-              sessionId: "default",
+              sessionId: sessionId || "default",
               createdAt: Date.now(),
             });
           }
@@ -642,188 +1084,40 @@ return [].`;
     return step;
   }
 
-
-
-
-  // ── getNextDecision ────────────────────────────────────────────────────────
-  async getNextDecision(
-    userInput: string | ThoughtPart[],
-    lastStep: ThoughtStep,
-    reasoningGraph: ReasoningGraph,
-    mode: "fast" | "deep",
-    turnCount: number
-  ): Promise<ControllerDecision> {
-    const previousSteps = GraphUtils.getAncestorChain(reasoningGraph, reasoningGraph.activeHeadId);
-    const context = this.getContext(reasoningGraph);
-
-    const dimensionCounts: Record<string, number> = {};
-    Object.values(Dimension).forEach((d) => (dimensionCounts[d] = 0));
-    previousSteps.forEach((s) => dimensionCounts[s.dimension]++);
-
-    const countsStr = Object.entries(dimensionCounts)
-      .filter(([d]) => d !== Dimension.INTENT_SYNTHESIS)
-      .map(([d, count]) => `${d}: ${count}/3`)
-      .join(", ");
-
-    const allQuotasMet = Object.entries(dimensionCounts)
-      .filter(([d]) => d !== Dimension.INTENT_SYNTHESIS)
-      .every(([, count]) => count >= 3);
-
-    const quotaDirective =
-      mode === "deep"
-        ? `8. QUOTA: Visit EVERY dimension at least 3 times before TERMINATE. Status: ${allQuotasMet ? "QUOTAS MET" : "QUOTAS NOT MET"}.`
-        : `8. SUFFICIENCY: Terminate when reasoning is sufficient.`;
-
-    const isInteractiveStep = lastStep?.dimension === Dimension.INTERACTIVE;
-
-    const summaryDirective = isInteractiveStep
-      ? `10. INTERACTIVE TRANSITION: The completed step was 'Interactive' (direct user dialogue). Do NOT generate 3-Answerer or Meta Reasoning summaries. In your reasoning parameter, state concisely why you are transitioning from Interactive to the next dimension based on the user's interaction.`
-      : `10. COMPREHENSIVE SECTIONED STEP SUMMARY: In your reasoning parameter, state why you are routing to the next dimension, AND provide an exhaustive, sectioned summary of the step that just completed. Your summary MUST contain explicit Markdown headers for each of the following:
-- ### 1. INTERNAL ANSWERER SUMMARY: Core mechanics, thermodynamics, first-principles findings.
-- ### 2. ARCHIVAL ANSWERER SUMMARY: Historical precedents, analogies, and collective memory findings.
-- ### 3. EXTERNAL ANSWERER SUMMARY: Live world data, empirical research, and external verification.
-- ### 4. META REASONING AGENT AUDIT SUMMARY: Critical audit of logic, factual claims, and meta-cognition.
-- ### 5. FINAL CONSOLIDATED INSIGHT SUMMARY: Master synthesized conclusion of the step.
-- ### 6. TRANSITION REASONING: Why you are routing to the next dimension.`;
-
-    const controllerMutations = PromptMemory.getActive("controller");
-    const mutationBlock = controllerMutations.length > 0 
-      ? `\n\n[CRITICAL SELF-CORRECTION INSTRUCTIONS FROM PAST REFLECTIONS]\n` + controllerMutations.map((m, i) => `${i+1}. ${m}`).join('\n')
-      : "";
-
-    const controllerPrompt = `${SYSTEM_SELF_MODEL}\n\nSYSTEM: You are the CONTROLLER bot — sovereign governor of this cognitive loop.
-${mutationBlock}
-
-╔════════════════════════════════════════════════════════════════════════════╗
-║                        SYSTEM ARCHITECTURE OVERVIEW                        ║
-║                                                                            ║
-║ You are a THINKING MACHINE made up of specialized agents (thinking         ║
-║ dimensions), just like the human brain is made up of specialized parts.    ║
-║ Each dimension is a distinct analytical lens that asks and answers questions║
-║                                                                            ║
-║ CRITICAL DISTINCTION:                                                      ║
-║ • UNDERSTANDING dimension: You ask YOURSELF questions (internal analysis)  ║
-║ • INTERACTIVE dimension: You ask the USER questions (external dialogue)    ║
-║                                                                            ║
-║ OTHER DIMENSIONS (all internal self-questioning):                         ║
-║ • INQUIRY, PROCEDURAL, WONDER, CONSEQUENCE, CAUSAL, CREATIVE, META-COG.    ║
-║ • GROUNDING: Is my reasoning grounded in truth? (fact-checking)            ║
-║                                                                            ║
-║ Your role as CONTROLLER: Orchestrate these agents in optimal sequence.     ║
-╚════════════════════════════════════════════════════════════════════════════╝
-
-Current dimension just completed: ${lastStep.dimension}
-Current turn: ${turnCount}
-Reasoning mode: ${mode.toUpperCase()}
-
-DIMENSION VISIT PROGRESS:
-${countsStr}
-
-REASONING HISTORY SUMMARY:
-${context}
-
-*** CODE OBSERVATION PROTOCOL ***
-When a step with dimension 'CodeObservation' appears in the reasoning history, it contains the ACTUAL output
-from a sandboxed code execution. Treat this output as ground truth.
-- If exitCode !== 0, route to Meta-Cognition to diagnose the error before deciding whether to retry.
-***
-
-STRICT OPERATIONAL DIRECTIVES:
-1. EXHAUSTIVE ANALYSIS: Do NOT be lazy. Ensure thorough, deep, and multi-faceted reasoning.
-2. SKEPTICISM: Assume the first few answers are insufficient. Dig deeper.
-3. SUFFICIENCY CRITERIA: Transition to "TERMINATE" ONLY when the original goal is fully solved.
-4. DYNAMIC INTERLEAVING: Jump between dimensions to build a holistic understanding.
-5. CREATIVE PIVOT: If you encounter a contradiction, transition to the 'Creative' dimension.
-6. CAUSAL EXPLANATION: If a result or pattern is observed but not explained, transition to 'Causal'.
-7. INTERACTIVE CLARIFICATION: Select 'Interactive' ONLY when you strictly require additional clarification or preference input directly from the human user. NEVER use 'Interactive' when the problem is solved or to conclude.
-8. TERMINATION ENFORCEMENT: When the reasoning is complete and the solution is ready, call set_next_dimension with nextDimension="TERMINATE". DO NOT select 'Interactive' to end the session. 'Interactive' opens a user prompt UI modal. 'TERMINATE' triggers the synthesis and final report generation.
-${quotaDirective}
-9. NO FIXED STOPPING: Keep thinking if reasoning is incomplete.
-${summaryDirective}
-
-TASK: Analyze the latest data and use the 'set_next_dimension' tool to decide the next dimension(s) or TERMINATE.`;
-
-    const cResponse = await this.cachedGenerate({
-      model: CONTROLLER_MODEL,
-      contents: context, 
-      config: {
-        tools: [{
-          functionDeclarations: [{
-            name: "set_next_dimension",
-            description: "Set the next dimension for the cognitive loop or terminate it.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                nextDimension: {
-                  type: Type.STRING,
-                  description: "The next dimension to visit or 'TERMINATE'.",
-                  enum: ["Understanding", "Inquiry", "Procedural", "Wonder", "Consequence", "Meta-Cognition", "Creative", "Causal", "Interactive", "TERMINATE"]
-                },
-                reasoning: {
-                  type: Type.STRING,
-                  description: isInteractiveStep
-                    ? "Justification for routing from Interactive to the next dimension."
-                    : "Comprehensive sectioned summary containing explicit Markdown headers for: 1. INTERNAL ANSWERER SUMMARY, 2. ARCHIVAL ANSWERER SUMMARY, 3. EXTERNAL ANSWERER SUMMARY, 4. META REASONING AGENT AUDIT SUMMARY, 5. FINAL CONSOLIDATED INSIGHT SUMMARY, and 6. TRANSITION REASONING."
-                }
-              },
-              required: ["nextDimension", "reasoning"]
-            }
-          }]
-        }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.ANY,
-            allowedFunctionNames: ["set_next_dimension"]
-          }
-        }
-      },
-    });
-
-    const call = cResponse.functionCalls?.[0];
-    if (call && call.name === "set_next_dimension") {
-      const args = call.args as any;
-      return {
-        mode: "SINGLE",
-        dimension: args.nextDimension as Dimension | "TERMINATE",
-        reasoning: args.reasoning
-      };
-    }
-
-    // fallback
-    return {
-      mode: "SINGLE",
-      dimension: Dimension.META_COGNITION,
-      reasoning: "Controller failed to use native function calling. Transitioning to Meta-Cognition to recover.",
-    };
-  }
-
-  // ── runThinkingStep (Thinking Agent Workflow) ───────────────────────────
   private async runThinkingStep(
     dimension: Dimension,
+    userText: string,
+    history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
     question: string,
-    userInput: string | ThoughtPart[],
-    context: string,
-    mode: "fast" | "deep"
-  ): Promise<{ 
-    initialInternal: string; 
-    initialArchival: string; 
+    internalMsgs: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    archivalMsgs: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    externalMsgs: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    sessionId?: string
+  ): Promise<{
+    initialInternal: string;
+    initialArchival: string;
     initialExternal: string;
     metaReasoningAudit?: string;
     thinkingMonologue?: string;
     consolidatedInsight?: string;
   }> {
-    
-    // STEP 1: Initial Answering (Parallel — Run Once)
-    const [r1InternalRes, r1ArchivalRes, r1ExternalRes] = await Promise.all([
-      this.getAnswerWithTools(dimension, question, "INTERNAL (Anatomy/Physiology/System State)", userInput, context, mode, 1),
-      this.getAnswerWithTools(dimension, question, "ARCHIVAL (Biographical Memory/Past Patterns)", userInput, context, mode, 1),
-      this.getAnswerWithTools(dimension, question, "EXTERNAL (General Knowledge/Logic/Web Context)", userInput, context, mode, 1),
-    ]);
-    const initialInternal = r1InternalRes.text;
-    const initialArchival = r1ArchivalRes.text;
-    const initialExternal = r1ExternalRes.text;
 
-    // STEP 2: Meta Reasoning Agent Single Audit
+    // ── STEP 1: Initial Answering (Parallel — Run Once) ───────────────────────
+    if (this.onEvent) {
+      this.onEvent('status', `Generating initial perspectives for ${dimension}...`);
+    }
+
+    const [initialInternal, initialArchival, initialExternal] = await Promise.all([
+      this.runReActLoop(internalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:Internal:R1", sessionId }, "INTERNAL"),
+      this.runReActLoop(archivalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:Archival:R1", sessionId }, "ARCHIVAL"),
+      this.runReActLoop(externalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:External:R1", sessionId }, "EXTERNAL"),
+    ]);
+
+    // ── STEP 2: Single Meta Reasoning Audit ──────────────────────────────────
+    if (this.onEvent) {
+      this.onEvent('status', `Meta Reasoning Agent auditing factual claims, logic, and Meta-Cognition...`);
+    }
+
     const metaReasoningSystem = `${SYSTEM_SELF_MODEL}\n\nSYSTEM: You are the Meta Reasoning Agent in a multi-dimensional thinking system.
 
 YOUR PURPOSE:
@@ -831,25 +1125,25 @@ auditing factual claims, evidence, logical consistency, and identifying any hall
 
 STRICT DIMENSIONAL BOUNDARIES (ANTI-OVERREACH):
 Stay focused entirely on auditing the 3 initial answers (Internal, Archival, External) against facts, evidence, logic, and meta-cognitive integrity.
-*Example of overreach:* Do not try to write the final answers yourself or replace the Answerers' roles. Your task is purely to provide a rigorous, objective audit and feedback report for the Answerers to refine their positions.
+*Example of overreach:* Do not try to write the final answers yourself or replace the Answerers' roles. Your task is purely to provide a rigorous, objective audit and feedback report for the system to refine its position.
 
 YOU ACTION MUST ONLY SATISFY THE PUTPOSE OF YOUR DIMENSION, DONT TRY TO DO THINGS THAT ARE OUTSIDE THE PURPOSE OF YOUR DIMENSION, THERE ARE OTHER AGENTS TASKED WITH FULFILLING OTHER NEEDS FOR OTHER DIMENSIONS`;
 
-    const metaReasoningPrompt = `CURRENT QUESTION: "${question}"\n\n` +
+    const metaReasoningUser = `CURRENT QUESTION: "${question}"\n\n` +
       `INITIAL ANSWER (INTERNAL ANSWERER):\n${initialInternal}\n\n` +
       `INITIAL ANSWER (ARCHIVAL ANSWERER):\n${initialArchival}\n\n` +
       `INITIAL ANSWER (EXTERNAL ANSWERER):\n${initialExternal}\n\n` +
       `Perform your Meta Reasoning evaluation now. Audit all 3 answers and output your concise audit report.`;
 
-    const metaRes = await this.cachedGenerate({
-      model: FLASH_MODEL,
-      contents: metaReasoningPrompt,
-      config: { systemInstruction: metaReasoningSystem, temperature: 0.3 }
-    });
+    const metaReasoningMsgs = this.makeCacheableMessages(userText, metaReasoningSystem, history, metaReasoningUser);
+    const metaRes = await this.completeMessages(metaReasoningMsgs, { cacheLabel: "MetaReasoningAgent", sessionId });
+    const auditReport = metaRes.choices[0]?.message?.content || "Audit completed: Proceed to finalization.";
 
-    const auditReport = metaRes.text || "Audit completed: Proceed to finalization.";
+    // ── STEP 3: Thinking Agent (Main Thinker — Monologue & Final Consolidation) ───
+    if (this.onEvent) {
+      this.onEvent('status', `Thinking Agent (Main Thinker) engaging in deep monologue thinking & consolidation...`);
+    }
 
-    // STEP 3: Thinking Agent (Main Thinker with Deep Internal Monologue)
     const thinkingAgentSystem = `${SYSTEM_SELF_MODEL}\n\nSYSTEM: You are the THINKING AGENT (Main Thinker) in a multi-dimensional cognitive engine.
 
 YOUR PURPOSE:
@@ -862,7 +1156,7 @@ You are the primary cognitive consolidator and deep reasoning engine. Your job i
 ---
 
 ### TOOL ACCESS
-You have full access to tools.
+You have full access to tool for like code execution, web search, and any other tools that may be useful for your task.
 
 ---
 
@@ -903,25 +1197,19 @@ Stay focused on fulfilling the purpose of the current assigned dimension.
 
 YOU ACTION MUST ONLY SATISFY THE PURPOSE OF YOUR DIMENSION, DONT TRY TO DO THINGS THAT ARE OUTSIDE THE PURPOSE OF YOUR DIMENSION, THERE ARE OTHER AGENTS TASKED WITH FULFILLING OTHER NEEDS FOR OTHER DIMENSIONS.`;
 
-    const thinkingAgentPrompt = `CURRENT QUESTION: "${question}"\n\n` +
+    const thinkingAgentUser = `CURRENT QUESTION: "${question}"\n\n` +
       `INITIAL ANSWER (INTERNAL ANSWERER):\n${initialInternal}\n\n` +
       `INITIAL ANSWER (ARCHIVAL ANSWERER):\n${initialArchival}\n\n` +
       `INITIAL ANSWER (EXTERNAL ANSWERER):\n${initialExternal}\n\n` +
       `META REASONING AGENT AUDIT REPORT:\n${auditReport}\n\n` +
       `Engage in your extensive <thinking> monologue first, then provide your FINAL CONSOLIDATED INSIGHT.`;
 
-    const thinkingRes = await this.getAnswerWithTools(
-      dimension,
-      question,
-      "THINKING_AGENT",
-      userInput,
-      context,
-      mode,
-      undefined,
-      thinkingAgentPrompt
+    const thinkingMsgs = this.makeCacheableMessages(userText, thinkingAgentSystem, history, thinkingAgentUser);
+    const fullOutput = await this.runReActLoop(
+      thinkingMsgs,
+      { tools: [executeCodeTool], thinking: true, cacheLabel: "ThinkingAgentMainThinker", sessionId },
+      "THINKING_AGENT"
     );
-
-    const fullOutput = thinkingRes.text || "Synthesis completed.";
 
     let thinkingMonologue = "";
     let consolidatedInsight = fullOutput;
@@ -945,204 +1233,22 @@ YOU ACTION MUST ONLY SATISFY THE PURPOSE OF YOUR DIMENSION, DONT TRY TO DO THING
     };
   }
 
-  /**
-   * Answerer agent with the execute_code side-channel tool.
-   * Returns the text answer AND an optional CodeRequest if the agent requested execution.
-   */
-  private async getAnswerWithTools(
-    dimension: Dimension,
-    question: string,
-    persona: string,
+
+  // ── getNextDecision ────────────────────────────────────────────────────────
+  async getNextDecision(
     userInput: string | ThoughtPart[],
-    context: string,
-    mode: 'fast' | 'deep' = 'deep',
-    debateRound?: 1 | 2 | 3,
-    debateContext?: string
-  ): Promise<{ text: string; codeRequest?: CodeRequest }> {
-    const isExternal = persona.includes("EXTERNAL");
-    const isArchival = persona.includes("ARCHIVAL");
-
-    let systemRole = "";
-    if (isExternal) {
-      const externalRules = EXTERNAL_ANSWERER_DIMENSION_RULES[dimension] || `You are the ${persona} Answerer bot. STRICT DIRECTIVE: Your sole purpose in this step is to serve the dimension: ${dimension}.\nDIMENSION GOAL: ${DIMENSIONS_INFO[dimension]}`;
-      
-      if (debateRound === 2) {
-        systemRole = `You are the ${persona} Answerer in FINALIZATION MODE.
-Read the Meta Reasoning Agent's audit report below. Address all factual critiques, logical gaps, or drifts identified, and produce your final answer.
-
-${externalRules}`;
-      } else {
-        systemRole = externalRules;
-      }
-    } else if (isArchival) {
-      const archivalRules = ARCHIVAL_ANSWERER_DIMENSION_RULES[dimension] || `You are the ${persona} Answerer bot. STRICT DIRECTIVE: Your sole purpose in this step is to serve the dimension: ${dimension}.\nDIMENSION GOAL: ${DIMENSIONS_INFO[dimension]}`;
-      
-      if (debateRound === 2) {
-        systemRole = `You are the ${persona} Answerer in FINALIZATION MODE.
-Read the Meta Reasoning Agent's audit report below. Address all factual critiques, logical gaps, or drifts identified, and produce your final answer.
-
-${archivalRules}`;
-      } else {
-        systemRole = archivalRules;
-      }
-    } else {
-      const internalRules = INTERNAL_ANSWERER_DIMENSION_RULES[dimension] || `You are the ${persona} Answerer bot. STRICT DIRECTIVE: Your sole purpose in this step is to serve the dimension: ${dimension}.\nDIMENSION GOAL: ${DIMENSIONS_INFO[dimension]}`;
-      
-      if (debateRound === 2) {
-        systemRole = `You are the ${persona} Answerer in FINALIZATION MODE.
-Read the Meta Reasoning Agent's audit report below. Address all factual critiques, logical gaps, or drifts identified, and produce your final answer.
-
-${internalRules}`;
-      } else {
-        systemRole = internalRules;
-      }
-    }
-
-    let debatePromptAdditions = "";
-    if (debateRound === 2) {
-      debatePromptAdditions = `\n\n[DEBATE ROUND 2: REBUTTAL PHASE]\n${debateContext}\n\nTask: Issue your rebuttal.`;
-    } else if (debateRound === 3) {
-      debatePromptAdditions = `\n\n[DEBATE ROUND 3: REVISION PHASE]\n${debateContext}\n\nTask: Revise and provide your final definitive answer.`;
-    }
-
-    let agentRole: "answerer-internal" | "answerer-archival" | "answerer-external" = "answerer-internal";
-    if (persona.includes("ARCHIVAL")) agentRole = "answerer-archival";
-    if (persona.includes("EXTERNAL")) agentRole = "answerer-external";
-
-    const mutations = PromptMemory.getActive(agentRole);
-    const mutationBlock = mutations.length > 0 
-      ? `\n\n[CRITICAL SELF-CORRECTION INSTRUCTIONS FROM PAST REFLECTIONS]\n` + mutations.map((m, i) => `${i+1}. ${m}`).join('\n')
-      : "";
-
-    const prompt = `${systemRole}${mutationBlock}
-    
-    USER INPUT: ${typeof userInput === 'string' ? `"${userInput}"` : "[MULTIMODAL INPUT]"}
-    REASONING HISTORY (CONTEXT):
-    ${context || "No history yet."}
-    
-    The Questioner asked: "${question}"${debatePromptAdditions}
-    
-    TASK: Provide a concise, expert answer that fulfills the purpose of this dimension from your specific perspective.
-    Ensure you respect the strict COGNITIVE BOUNDARIES & ANTI-OVERREACH RULES listed above.
-    If answering this question requires running code to produce ground-truth results (e.g., numerical computation,
-    algorithm simulation, data processing, verification), use the 'execute_code' tool to request local execution.
-    The code executes directly on the user's local machine in a dedicated workspace directory. You have full internet access and can download any external libraries you need (e.g., via \`pip install\`) using subprocess in your script. DO NOT interact with or modify the user's local project files.
-    Only request code execution when truly necessary — not for every step.
-    ${dimension === Dimension.META_COGNITION ? 'Since this is Meta-Cognition, you MUST analyze and reflect upon the thoughts, logic, or potential gaps in the reasoning produced in the history above.' : ''}
-    ${isExternal ? 'Use Google Search or Maps if necessary to provide real-time or geographical grounding.' : ''}
-    
-    RICH FORMATTING: Use Markdown (tables, lists, bold) and LaTeX for formulas ($x^2$) to provide a clear, technical response.
-    
-    BE TECHNICAL, CONCISE, AND DIRECT. DO NOT PROVIDE PREAMBLE.`;
-
-    const executeCodeTool = {
-      functionDeclarations: [{
-        name: "execute_code",
-        description: "Request execution of a code snippet directly on the local machine. Use when computation, algorithm verification, data processing, or simulation is needed. You have full internet access and can download any libraries you need (e.g., pip install). Do NOT interact with local project files.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            language: {
-              type: Type.STRING,
-              description: "Programming language: 'python3' or 'javascript'.",
-              enum: ["python3", "javascript"]
-            },
-            code: {
-              type: Type.STRING,
-              description: "Complete, executable source code to run in the sandbox."
-            }
-          },
-          required: ["language", "code"]
-        }
-      }]
-    };
-
-    const tools: any[] = [executeCodeTool];
-    if (isExternal) tools.push({ googleSearch: {} });
-
-    const response = await this.cachedGenerate({
-      model: FLASH_MODEL,
-      contents: typeof userInput === 'string' ? prompt : [...userInput, { text: prompt }],
-      config: { tools },
-    });
-
-    // Detect execute_code tool call
-    const codeCall = response.functionCalls?.find(fc => fc.name === 'execute_code');
-    if (codeCall) {
-      const args = codeCall.args as any;
-      const codeRequest: CodeRequest = {
-        id: randomUUID(),
-        language: (args.language === 'javascript' ? 'javascript' : 'python3') as 'python3' | 'javascript',
-        code: args.code,
-        createdAt: Date.now(),
-        status: 'pending',
-      };
-      return {
-        text: response.text || `Code execution requested for ${codeRequest.language}.`,
-        codeRequest,
-      };
-    }
-
-    return { text: response.text || "No data available." };
-  }
-
-  async generateTTS(text: string): Promise<string | null> {
-    try {
-      const response = await this.cachedGenerate({
-        model: TTS_MODEL,
-        contents: [{ parts: [{ text: `Say with a comprehensive, calm, and authoritative voice: ${text}` }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Zephyr' },
-            },
-          },
-        },
-      });
-
-      return response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || null;
-    } catch (e) {
-      console.error("TTS Generation Failed:", e);
-      return null;
-    }
-  }
-
-  async generateSummary(reasoningGraph: ReasoningGraph): Promise<string> {
-    const fullTrace = this.getContext(reasoningGraph);
-    const prompt = `You are the COGNITIVE ANALYST. 
-    
-    TASK: Provide a comprehensive "State of Thinking" summary based on the reasoning trace below.
-    
-    REASONING TRACE:
-    ${fullTrace}
-    
-    REQUIREMENTS:
-    1. Summarize the key insights gathered across all dimensions so far.
-    2. Identify the current consensus or leading hypothesis.
-    3. Highlight any remaining uncertainties or contradictions.
-    4. Explain "Where we are now" in the cognitive journey.
-    
-    STYLE: comprehensive, simple, and highly detailed. Use a structured, long-form message format with rich Markdown (headings, tables, bold) and LaTeX for any mathematical content.`;
-
-    const response = await this.cachedGenerate({
-      model: FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text || "Unable to generate summary.";
-  }
-
-  async synthesizeIntent(
-    userInput: string | ThoughtPart[],
+    lastStep: ThoughtStep,
     reasoningGraph: ReasoningGraph,
-    mode: 'fast' | 'deep' = 'deep'
-  ): Promise<SynthesisResult> {
-    const fullTrace = this.getContext(reasoningGraph);
-    const steps = GraphUtils.getAncestorChain(reasoningGraph, reasoningGraph.activeHeadId);
+    mode: "fast" | "deep",
+    turnCount: number
+  ): Promise<ControllerDecision> {
+    const userText = typeof userInput === "string" ? `"${userInput}"` : "[MULTIMODAL INPUT]";
+    const previousSteps = GraphUtils.getAncestorChain(reasoningGraph, reasoningGraph.activeHeadId);
+    const history = this.buildHistory(reasoningGraph);
 
     const dimensionCounts: Record<string, number> = {};
-    Object.values(Dimension).forEach(d => dimensionCounts[d] = 0);
-    steps.forEach(s => dimensionCounts[s.dimension]++);
+    Object.values(Dimension).forEach((d) => (dimensionCounts[d] = 0));
+    previousSteps.forEach((s) => dimensionCounts[s.dimension]++);
 
     const countsStr = Object.entries(dimensionCounts)
       .filter(([d]) => d !== Dimension.INTENT_SYNTHESIS)
@@ -1151,409 +1257,542 @@ ${internalRules}`;
 
     const allQuotasMet = Object.entries(dimensionCounts)
       .filter(([d]) => d !== Dimension.INTENT_SYNTHESIS)
-      .every(([_, count]) => count >= 3);
+      .every(([, count]) => count >= 3);
 
-    const mathInstruction = "MATHEMATICAL RIGOR: Incorporate quantitative findings, formulas, and logical proofs ONLY when they are essential to the solution's technical accuracy. Otherwise, present the report in plain, authoritative English.";
-
-    const quotaInstruction = mode === 'deep'
-      ? `3. QUOTA CHECK: If any dimension has been visited fewer than 3 times (see progress above), you MUST use status="CONTINUE" and direct the system to a dimension that hasn't met its quota. Current status: ${allQuotasMet ? "QUOTAS MET" : "QUOTAS NOT MET"}.`
-      : `3. SUFFICIENCY: Determine if the reasoning is sufficient to provide a complete answer.`;
-
-    const prompt = `You are the INTENT SYNTHESIZER. 
-    User Input: ${typeof userInput === 'string' ? `"${userInput}"` : "[MULTIMODAL INPUT]"}
-    REASONING MODE: ${mode.toUpperCase()}
-    Full Reasoning Trace:
-    ${fullTrace}
-    
-    DIMENSION VISIT PROGRESS:
-    ${countsStr}
-    
-    TASK:
-    1. Analyze the exhaustive multi-dimensional reasoning trace above.
-    2. Determine if the initial goal has been FULLY solved with high technical fidelity and specific, actionable details.
-    ${quotaInstruction}
-    4. If the reasoning is incomplete, abstract, or lacks the concrete specifications required to fulfill the user's request, you MUST use the 'submit_synthesis' tool with status="CONTINUE".
-    5. If the reasoning is complete ${mode === 'deep' ? 'AND all quotas are met' : ''}, you MUST generate a VERY DETAILED TECHNICAL REPORT. This report should be the actual solution, including all specifications, methodologies, and architectural details derived from the reasoning. It must be a comprehensive response to the user's initial prompt.
-    
-    RICH FORMATTING: You MUST use advanced Markdown features to make the report professional and readable:
-    - Use clear headings (h1, h2, h3) for structure.
-    - Use tables for data comparison or specifications.
-    - Use LaTeX (KaTeX) for any mathematical formulas or formal logic (e.g., $E=mc^2$ or $$\sum_{i=1}^n i$$).
-    - Use bold and italics for emphasis.
-    - Use blockquotes for key insights or warnings.
-    - Use task lists for implementation steps.
-  
-    
-    CRITICAL: 
-    - Do not settle for abstract directives or high-level summaries. The user wants the actual SOLUTION.
-    - If you CONTINUE, provide a 'newDirective' that explicitly points the Controller to the specific missing technical pieces or unexplored areas.
-    - Pay special attention to the Meta-Cognition phase, as it represents the system's self-reflection.`;
-
-    const response = await this.cachedGenerate({
-      model: CONTROLLER_MODEL,
-      contents: typeof userInput === 'string' ? prompt : [...userInput, { text: prompt }],
-      config: {
-        tools: [{
-          functionDeclarations: [{
-            name: "submit_synthesis",
-            description: "Submit the final synthesized intent or request to continue the loop.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                status: {
-                  type: Type.STRING,
-                  description: "Whether the synthesis is complete or needs more reasoning.",
-                  enum: ["COMPLETE", "CONTINUE"]
-                },
-                content: {
-                  type: Type.STRING,
-                  description: "The final technical directive (if COMPLETE) or explanation of gaps (if CONTINUE)."
-                },
-                nextDimension: {
-                  type: Type.STRING,
-                  description: "If status is CONTINUE, the dimension to restart with.",
-                  enum: ["Understanding", "Inquiry", "Procedural", "Wonder", "Consequence", "Meta-Cognition", "Creative", "Causal", "Interactive"]
-                },
-                newDirective: {
-                  type: Type.STRING,
-                  description: "If status is CONTINUE, the specific focus for the next phase."
-                }
-              },
-              required: ["status", "content"]
-            }
-          }]
-        }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.ANY,
-            allowedFunctionNames: ["submit_synthesis"]
-          }
-        }
-      }
-    });
-
-    const call = response.functionCalls?.[0];
-    if (call && call.name === "submit_synthesis") {
-      const args = call.args as any;
-      return {
-        status: args.status as "COMPLETE" | "CONTINUE",
-        content: args.content,
-        nextDimension: args.nextDimension as Dimension,
-        newDirective: args.newDirective,
-      };
-    } else {
-      // Fallback: Try to parse JSON from text if function call failed
-      try {
-        const cleanedText = this.extractJson(response.text || "");
-        const result = JSON.parse(cleanedText);
-        if (result.status && result.content) {
-          return {
-            status: result.status as "COMPLETE" | "CONTINUE",
-            content: result.content,
-            nextDimension: result.nextDimension as Dimension,
-            newDirective: result.newDirective,
-          };
-        }
-      } catch (e) {
-        // Fallback failed
-      }
-
-      return {
-        status: "COMPLETE",
-        content: response.text || "Synthesizer failed to use native function calling.",
-      };
+    let wrapUpDirective = "";
+    if (turnCount > 100) {
+      const remaining = Math.max(0, 120 - turnCount);
+      wrapUpDirective = `\nCRITICAL: WRAP-UP PHASE. You have ${remaining} turns left. Converge now.`;
     }
-  }
 
-  async generateFinalReport(userInput: string | ThoughtPart[], reasoningGraph: ReasoningGraph, synthesis: string): Promise<string> {
-    const fullTrace = this.getContext(reasoningGraph);
-    const prompt = `You are the PRINCIPAL ARCHITECT. 
-    
-    TASK: Your job is to use all the previous thoughts and synthesized intent to describe a very detailed and long solution to the goal in form of a report that is not less than 3000 words long.
-    
-    USER INPUT: ${typeof userInput === 'string' ? `"${userInput}"` : "[MULTIMODAL INPUT]"}
-    SYNTHESIZED INTENT:
-    ${synthesis}
-    
-    FULL REASONING TRACE:
-    ${fullTrace}
-    
-    REQUIREMENTS:
-    1. The report MUST be extremely detailed, comprehensive, and technical.
-    2. It MUST be at least 3000 words long. Do not be concise. Elaborate on every aspect of the solution.
-    3. Use rich Markdown formatting (headings, tables, lists, bold, italics).
-    4. Use LaTeX (KaTeX) for any mathematical formulas or formal logic.
-    5. Structure the report with clear sections: Executive Summary, Problem Analysis, Proposed Architecture, Technical Specifications, Implementation Roadmap, Risk Assessment, and Conclusion.
-    6. Ensure the solution is actionable and directly addresses the user's initial prompt with high fidelity.
-    
-    STYLE: Authoritative, expert, and exhaustive.`;
+    const quotaDirective =
+      mode === "deep"
+        ? `8. QUOTA: Visit EVERY dimension at least 3 times before TERMINATE. Status: ${allQuotasMet ? "QUOTAS MET" : "QUOTAS NOT MET"}.`
+        : `8. SUFFICIENCY: Terminate when reasoning is sufficient.`;
 
-    const response = await this.cachedGenerate({
-      model: MODEL_NAME, // Use unified model name
-      contents: typeof userInput === 'string' ? prompt : [...userInput, { text: prompt }],
-    });
-    return response.text || "Unable to generate final report.";
-  }
+    const isInteractiveStep = lastStep?.dimension === Dimension.INTERACTIVE;
 
-  async generateSuggestions(): Promise<string[]> {
-    const prompt = `You are the OVAN PROMPT GENERATOR.
-    TASK: Generate 4 standalone brainstorming tasks focused on inventing new products or solving specific real-world problems.
-    STRICT DIRECTIVE: Do NOT assume any prior context or existing products. Each prompt must be a complete, independent idea for a user to explore.
-    EXAMPLES: "Invent a new type of wearable device for deep-sea divers.", "Solve the problem of urban noise pollution using bio-materials.", "Design a low-cost water filtration system for rural communities."
-    STYLE: Simple, direct, and creative.
-    
-    RETURN ONLY A JSON ARRAY OF STRINGS. NO PREAMBLE.`;
+    const summaryDirective = isInteractiveStep
+      ? `10. INTERACTIVE TRANSITION: The completed step was 'Interactive' (direct user dialogue). In your reasoning, briefly state why you are transitioning from Interactive to the next dimension.`
+      : `10. TRANSITION REASONING: In your reasoning parameter, briefly state what the completed step revealed and why you are routing to the next dimension. The full outputs (Internal, Archival, External, Meta, Consolidated) are already provided in the DETAILS block below — do NOT re-summarise them. Just your routing decision and brief rationale.`;
 
-    try {
-      const response = await this.cachedGenerate({
-        model: FLASH_MODEL,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
-      return JSON.parse(response.text || "[]");
-    } catch (e) {
-      console.error("Suggestion Generation Failed:", e);
-      return [
-        "Invent a new type of wearable device for deep-sea divers.",
-        "Solve the problem of urban noise pollution using bio-materials.",
-        "Design a low-cost water filtration system for rural communities.",
-        "Create a concept for a modular, zero-waste smartphone."
-      ];
-    }
-  }
-
-  async getInitialDimension(
-    userInput: string | ThoughtPart[],
-    mode: 'fast' | 'deep' = 'deep',
-    _sessionId?: string
-  ): Promise<{ dimension: Dimension; reasoning: string }> {
-    const mathInstruction = "MATHEMATICAL RIGOR: Use mathematics ONLY when strictly necessary for technical precision.";
-
-    const initialPrompt = `SYSTEM: You are the CONTROLLER bot at the START of a multi-dimensional thinking journey.
+    const controllerSystem = `${SYSTEM_SELF_MODEL}\n\nSYSTEM: You are the CONTROLLER bot — sovereign governor of this cognitive loop.
 
 ╔════════════════════════════════════════════════════════════════════════════╗
 ║                        SYSTEM ARCHITECTURE OVERVIEW                        ║
 ║                                                                            ║
-║ You are a THINKING MACHINE made up of specialized agents  (thinking dimensions). just like the human brain is made up of specialized parts
-║ Each dimension is a distinct analytical lens that asks and answers questions. ║
-║                                                                        ║
-║ CRITICAL DISTINCTION:                                                     ║
+║ You are a THINKING MACHINE made up of specialized agents (thinking         ║
+║ dimensions), just like the human brain is made up of specialized parts.    ║
+║ Each dimension is a distinct analytical lens that asks and answers questions║
+║                                                                            ║
+║ CRITICAL DISTINCTION:                                                      ║
 ║ • UNDERSTANDING dimension: You ask YOURSELF questions (internal analysis)  ║
-║   - Questions about intent, meaning, structure, relationships             ║
-║   - Self-reflection on what the problem truly is                          ║
-║   - Internal dialogue between your own analytical sub-agents              ║
+║ • INTERACTIVE dimension: You ask the USER questions (external dialogue)    ║
 ║                                                                            ║
-║ • INTERACTIVE dimension: You ask the USER questions (external dialogue)   ║
-║   - Questions seeking clarification, constraints, preferences             ║
-║   - Direct communication with the human outside your system               ║
-║   - Gathering information only the user can provide                       ║
+║ OTHER DIMENSIONS (all internal self-questioning):                         ║
+║ • INQUIRY, PROCEDURAL, WONDER, CONSEQUENCE, CAUSAL, CREATIVE, META-COG.    ║
+║ • GROUNDING: Is my reasoning grounded in truth? (fact-checking)            ║
 ║                                                                            ║
-║ OTHER DIMENSIONS (all internal self-questioning):                        ║
-║ • INQUIRY: Why does this happen? (root cause analysis)                    ║
-║ • PROCEDURAL: How do we do this? (methodology & steps)                    ║
-║ • WONDER: What if this were different? (scenario exploration)             ║
-║ • CONSEQUENCE: What would happen if...? (impact analysis)                 ║
-║ • CAUSAL: What is the fundamental cause? (causal reasoning)               ║
-║ • CREATIVE: What else could work? (lateral thinking)                      ║
-║ • META-COGNITION: Am I thinking correctly? (meta-analysis)                ║
-║ • GROUNDING: Is my reasoning grounded in truth? (fact-checking)           ║
-║   - Called automatically every 3 loops to prevent hallucination            ║
-║   - Identifies false claims and unverified assumptions                    ║
-║   - Breaks overconfidence by grounding reasoning in evidence               ║
-║                                                                            ║
-║ You are the mind of this system and your role as CONTROLLER: Orchestrate these agents in optimal sequence.    ║
+║ Your role as CONTROLLER: Orchestrate these agents in optimal sequence.     ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-USER INPUT: ${typeof userInput === 'string' ? `"${userInput}"` : "[MULTIMODAL INPUT]"}
-REASONING MODE: ${mode.toUpperCase()}
+STRICT DIRECTIVES:
+1. EXHAUSTIVE ANALYSIS: Ensure thorough, deep, multi-faceted reasoning.
+2. SKEPTICISM: Assume first answers are insufficient. Dig deeper.
+3. SUFFICIENCY: Transition to TERMINATE ONLY when fully solved.
+4. DYNAMIC INTERLEAVING: Jump between dimensions for holistic understanding.
+5. CREATIVE PIVOT: On contradictions, transition to 'Creative'.
+6. CAUSAL EXPLANATION: Unexplained patterns → 'Causal'.
+7. INTERACTIVE CLARIFICATION: Select 'Interactive' ONLY when you strictly require additional clarification or preference input directly from the human user. NEVER use 'Interactive' when the problem is solved or to conclude.
+8. TERMINATION ENFORCEMENT: When the reasoning is complete and the solution is ready, call set_next_dimension with nextDimension="TERMINATE". DO NOT select 'Interactive' to end the session. 'Interactive' opens a user prompt UI modal. 'TERMINATE' triggers the synthesis and final report generation.
+9. NO FIXED STOPPING: Keep thinking if reasoning is incomplete.
+${summaryDirective}
+
+*** CODE OBSERVATION PROTOCOL ***
+When a step with dimension 'CodeObservation' appears, it contains ACTUAL sandbox output.
+Treat it as ground truth — do NOT speculate about what code might produce.
+- If exitCode !== 0, route to Meta-Cognition to diagnose stderr.
+***`;
+
+    // lastStepDetails removed: the full history already contains every step's
+    // outputs at fixed positions. Duplicating the last step here was sending
+    // ~6000 extra tokens per controller call and breaking cache.
+    const controllerMessages = this.makeCacheableMessages(
+      userText as string,
+      controllerSystem,
+      history,
+      `Current dimension just completed: ${lastStep?.dimension || "Initial"}\n` +
+      `Current turn: ${turnCount}\n` +
+      `Reasoning mode: ${mode.toUpperCase()}\n` +
+      `${wrapUpDirective}\n` +
+      `Dimension visit progress: ${countsStr}\n` +
+      `${quotaDirective}\n` +
+      (isInteractiveStep
+        ? `Decide the next dimension based on the user interaction in the last step above.`
+        : `Review the last completed step in the history above and decide the next dimension. Provide only brief transition reasoning.`)
+    );
+
+    const controllerTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+      {
+        type: "function",
+        function: {
+          name: "set_next_dimension",
+          description: "Set the next dimension for the cognitive loop or terminate it.",
+          parameters: {
+            type: "object",
+            properties: {
+              nextDimension: {
+                type: "string",
+                description: "The next dimension to visit or 'TERMINATE'. Select 'TERMINATE' to conclude the cognitive loop and generate the final solution report. NEVER select 'Interactive' to conclude.",
+                enum: [
+                  "Understanding", "Inquiry", "Procedural", "Wonder",
+                  "Consequence", "Meta-Cognition", "Creative", "Causal", "Interactive",
+                  "TERMINATE",
+                ],
+              },
+              reasoning: {
+                type: "string",
+                description: "Brief explanation of what the completed step revealed and why this next dimension was chosen. Do NOT re-summarise all outputs — the full details are already in context.",
+              },
+            },
+            required: ["nextDimension", "reasoning"],
+          },
+        },
+      },
+    ];
+
+    const sessionId = reasoningGraph.metadata?.sessionId;
+    const cRes = await this.completeMessages(controllerMessages, {
+      tools: controllerTools,
+      toolChoice: { type: "function", function: { name: "set_next_dimension" } },
+      thinking: true,
+      cacheLabel: "Controller",
+      sessionId,
+    });
+
+    const toolCall = cRes.choices[0]?.message?.tool_calls?.[0] as any;
+    if (toolCall?.function?.name === "set_next_dimension") {
+      try {
+        const args = JSON.parse(toolCall.function.arguments);
+        return {
+          mode: "SINGLE",
+          dimension: args.nextDimension as Dimension | "TERMINATE",
+          reasoning: args.reasoning
+        };
+      } catch {
+        return {
+          mode: "SINGLE",
+          dimension: Dimension.META_COGNITION,
+          reasoning: "Failed to parse controller args. Falling back to Meta-Cognition.",
+        };
+      }
+    }
+
+    // fallback
+    return {
+      mode: "SINGLE",
+      dimension: Dimension.META_COGNITION,
+      reasoning: "Controller tool call failed. Recovering via Meta-Cognition.",
+    };
+  }
+
+  // ── synthesizeIntent ───────────────────────────────────────────────────────
+  async synthesizeIntent(
+    userInput: string | ThoughtPart[],
+    reasoningGraph: ReasoningGraph,
+    mode: "fast" | "deep" = "deep"
+  ): Promise<SynthesisResult> {
+    const steps = GraphUtils.getAncestorChain(reasoningGraph, reasoningGraph.activeHeadId);
+    const userText = typeof userInput === "string" ? `"${userInput}"` : "[MULTIMODAL INPUT]";
+    const history = this.buildHistory(reasoningGraph);
+
+    const dimensionCounts: Record<string, number> = {};
+    Object.values(Dimension).forEach((d) => (dimensionCounts[d] = 0));
+    steps.forEach((s) => dimensionCounts[s.dimension]++);
+    const countsStr = Object.entries(dimensionCounts)
+      .filter(([d]) => d !== Dimension.INTENT_SYNTHESIS)
+      .map(([d, count]) => `${d}: ${count}/3`)
+      .join(", ");
+    const allQuotasMet = Object.entries(dimensionCounts)
+      .filter(([d]) => d !== Dimension.INTENT_SYNTHESIS)
+      .every(([, count]) => count >= 3);
+
+    const quotaInstruction =
+      mode === "deep"
+        ? `3. QUOTA CHECK: If any dimension < 3 visits, use status="CONTINUE". Status: ${allQuotasMet ? "QUOTAS MET" : "QUOTAS NOT MET"}.`
+        : `3. SUFFICIENCY: Determine if reasoning is sufficient.`;
+
+    // Static system prompt for Synthesizer
+    const synthSystem = `You are the INTENT SYNTHESIZER — the quality gate of this cognitive loop.
+
+YOUR TASK:
+1. Analyze the full multi-dimensional reasoning trace.
+2. Determine if the initial goal has been FULLY solved with high technical fidelity.
+3. If incomplete or quotas not met, use submit_synthesis with status="CONTINUE".
+4. If complete${mode === "deep" ? " AND all quotas are met" : ""}, generate a VERY DETAILED TECHNICAL REPORT (≥3000 words) as the actual solution.
+
+RICH FORMATTING: Use headings, tables, LaTeX, bold, blockquotes, and task lists.
+CRITICAL: Provide the actual SOLUTION, not abstract summaries.`;
+
+    const synthMessages = this.makeCacheableMessages(
+      userText as string,
+      synthSystem,
+      history,
+      `Dimension visit progress: ${countsStr}\n` +
+      `Reasoning mode: ${mode.toUpperCase()}\n` +
+      `${quotaInstruction}\n\n` +
+      `Synthesize the intent now.`
+    );
+
+    const synthTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+      {
+        type: "function",
+        function: {
+          name: "submit_synthesis",
+          description: "Submit the final synthesized intent or request to continue the loop.",
+          parameters: {
+            type: "object",
+            properties: {
+              status: {
+                type: "string",
+                enum: ["COMPLETE", "CONTINUE"],
+                description: "Whether synthesis is complete or needs more reasoning.",
+              },
+              content: {
+                type: "string",
+                description: "Final technical directive (COMPLETE) or explanation of gaps (CONTINUE).",
+              },
+              nextDimension: {
+                type: "string",
+                enum: ["Understanding", "Inquiry", "Procedural", "Wonder", "Consequence", "Meta-Cognition", "Creative", "Causal", "Interactive"],
+                description: "If CONTINUE, dimension to restart with.",
+              },
+              newDirective: {
+                type: "string",
+                description: "If CONTINUE, specific focus for the next phase.",
+              },
+            },
+            required: ["status", "content"],
+          },
+        },
+      },
+    ];
+
+    const sessionId = reasoningGraph.metadata?.sessionId;
+    const res = await this.completeMessages(synthMessages, {
+      tools: synthTools,
+      toolChoice: { type: "function", function: { name: "submit_synthesis" } },
+      thinking: true,
+      cacheLabel: "Synthesizer",
+      sessionId,
+    });
+
+    const toolCall = res.choices[0]?.message?.tool_calls?.[0] as any;
+    if (toolCall?.function?.name === "submit_synthesis") {
+      try {
+        const args = JSON.parse(toolCall.function.arguments);
+        return {
+          status: args.status as "COMPLETE" | "CONTINUE",
+          content: args.content,
+          nextDimension: args.nextDimension as Dimension,
+          newDirective: args.newDirective,
+        };
+      } catch {
+        // fall through to text fallback
+      }
+    }
+
+    try {
+      const text = res.choices[0]?.message?.content ?? "";
+      const parsed = JSON.parse(this.extractJson(text));
+      if (parsed.status && parsed.content) {
+        return {
+          status: parsed.status as "COMPLETE" | "CONTINUE",
+          content: parsed.content,
+          nextDimension: parsed.nextDimension as Dimension,
+          newDirective: parsed.newDirective,
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      status: "COMPLETE",
+      content: res.choices[0]?.message?.content ?? "Synthesizer returned no content.",
+    };
+  }
+
+  // ── generateFinalReport ────────────────────────────────────────────────────
+  async generateFinalReport(
+    userInput: string | ThoughtPart[],
+    reasoningGraph: ReasoningGraph,
+    synthesis: string
+  ): Promise<string> {
+    const userText = typeof userInput === "string" ? `"${userInput}"` : "[MULTIMODAL INPUT]";
+    const history = this.buildHistory(reasoningGraph);
+    const sessionId = reasoningGraph.metadata?.sessionId;
+
+    const system = `You are the PRINCIPAL ARCHITECT.
+
+TASK: Use all previous thoughts and synthesized intent to write a very detailed solution (≥3000 words).
+
+REQUIREMENTS:
+1. Extremely detailed, comprehensive, and technical.
+2. At least 3000 words. Do not be concise.
+3. Rich Markdown: headings, tables, lists, bold, italics.
+4. LaTeX for formulas.
+5. Sections: Executive Summary, Problem Analysis, Proposed Architecture, Technical Specifications, Implementation Roadmap, Risk Assessment, Conclusion.
+6. Actionable and directly addresses the user's initial prompt.
+
+STYLE: Authoritative, expert, exhaustive.`;
+
+    const messages = this.makeCacheableMessages(
+      userText,
+      system,
+      history,
+      `Synthesized intent:\n${synthesis}\n\nGenerate the final report now.`
+    );
+
+    const res = await this.completeMessages(messages, { cacheLabel: "FinalReport", sessionId });
+    return res.choices[0]?.message?.content ?? "Unable to generate final report.";
+  }
+
+  // ── generateSummary ────────────────────────────────────────────────────────
+  async generateSummary(reasoningGraph: ReasoningGraph): Promise<string> {
+    const history = this.buildHistory(reasoningGraph);
+    const sessionId = reasoningGraph.metadata?.sessionId;
+
+    const system = `You are the COGNITIVE ANALYST.
+
+TASK: Provide a comprehensive "State of Thinking" summary based on the reasoning trace.
+
+REQUIREMENTS:
+1. Summarize key insights across all dimensions.
+2. Identify current consensus or leading hypothesis.
+3. Highlight remaining uncertainties or contradictions.
+4. Explain "Where we are now" in the cognitive journey.
+
+STYLE: Comprehensive, structured, long-form with rich Markdown and LaTeX.`;
+
+    const messages = this.makeCacheableMessages(
+      "Analyze reasoning trace",
+      system,
+      history,
+      "Generate the summary now."
+    );
+
+    const res = await this.completeMessages(messages, { cacheLabel: "Summary", sessionId });
+    return res.choices[0]?.message?.content ?? "Unable to generate summary.";
+  }
+
+  // ── generateSuggestions ────────────────────────────────────────────────────
+  async generateSuggestions(): Promise<string[]> {
+    const system = `You are the OVAN PROMPT GENERATOR.
+TASK: Generate 4 standalone brainstorming tasks focused on inventing new products or solving real-world problems.
+STRICT DIRECTIVE: Each prompt must be complete and independent.
+EXAMPLES: "Invent a new type of wearable device for deep-sea divers.", "Solve the problem of urban noise pollution using bio-materials."
+STYLE: Simple, direct, creative.
+RETURN ONLY A JSON ARRAY OF STRINGS. NO PREAMBLE.`;
+
+    try {
+      const res = await this.complete(system, "Generate 4 suggestions.", { cacheLabel: "Suggestions" });
+      const text = res.choices[0]?.message?.content ?? "[]";
+      return JSON.parse(text);
+    } catch {
+      return [
+        "Invent a new type of wearable device for deep-sea divers.",
+        "Solve the problem of urban noise pollution using bio-materials.",
+        "Design a low-cost water filtration system for rural communities.",
+        "Create a concept for a modular, zero-waste smartphone.",
+      ];
+    }
+  }
+
+  // ── generateTTS (not supported by DeepSeek) ────────────────────────────────
+  async generateTTS(_text: string): Promise<string | null> {
+    return null;
+  }
+
+  // ── getInitialDimension ────────────────────────────────────────────────────
+  async getInitialDimension(
+    userInput: string | ThoughtPart[],
+    mode: "fast" | "deep" = "deep",
+    sessionId?: string
+  ): Promise<{ dimension: Dimension; reasoning: string }> {
+    const userText = typeof userInput === "string" ? `"${userInput}"` : "[MULTIMODAL INPUT]";
+
+    // Static system prompt — identical on every session start → cached after first call ✅
+    const system = `You are the CONTROLLER bot at the START of a multi-dimensional thinking journey.
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                        SYSTEM ARCHITECTURE OVERVIEW                        ║
+║                                                                            ║
+║ You are a THINKING MACHINE made up of specialized agents (thinking         ║
+║ dimensions), just like the human brain is made up of specialized parts.    ║
+║ Each dimension is a distinct analytical lens that asks and answers questions║
+║                                                                            ║
+║ CRITICAL DISTINCTION:                                                      ║
+║ • UNDERSTANDING dimension: You ask YOURSELF questions (internal analysis)  ║
+║ • INTERACTIVE dimension: You ask the USER questions (external dialogue)    ║
+║                                                                            ║
+║ OTHER DIMENSIONS (all internal self-questioning):                         ║
+║ • INQUIRY, PROCEDURAL, WONDER, CONSEQUENCE, CAUSAL, CREATIVE, META-CONG.  ║
+╚════════════════════════════════════════════════════════════════════════════╝
 
 *** INITIAL DIMENSION SELECTION GUIDANCE ***
 - Select 'Interactive' ONLY if the user's prompt is ambiguous, incomplete, or requires user preferences/decisions before analysis can proceed.
 - Select 'Understanding' if the user's prompt is clear, specific, or self-contained, so analytical reasoning can begin immediately without interrupting the user.
-***
+***`;
 
-TASK: Choose the appropriate starting dimension (Interactive or Understanding).
-
-${mathInstruction}
-
-RESPOND: Use the 'set_initial_dimension' tool to specify the initial dimension.`;
-
-    const response = await this.cachedGenerate({
-      model: CONTROLLER_MODEL,
-      contents: typeof userInput === 'string' ? initialPrompt : [...userInput, { text: initialPrompt }],
-      config: {
-        tools: [{
-          functionDeclarations: [{
-            name: "set_initial_dimension",
-            description: "Set the initial dimension for the cognitive loop.",
-            parameters: {
-              type: Type.OBJECT,
-              properties: {
-                dimension: {
-                  type: Type.STRING,
-                  description: "The starting dimension for this reasoning session.",
-                  enum: ["Understanding", "Inquiry", "Procedural", "Wonder", "Consequence", "Meta-Cognition", "Creative", "Causal", "Interactive"]
-                },
-                reasoning: {
-                  type: Type.STRING,
-                  description: "Why this dimension is the best starting point for this specific user input."
-                }
+    const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+      {
+        type: "function",
+        function: {
+          name: "set_initial_dimension",
+          description: "Set the initial dimension for the cognitive loop.",
+          parameters: {
+            type: "object",
+            properties: {
+              dimension: {
+                type: "string",
+                enum: ["Understanding", "Inquiry", "Procedural", "Wonder", "Consequence", "Meta-Cognition", "Creative", "Causal", "Interactive"],
+                description: "The starting dimension for this reasoning session.",
               },
-              required: ["dimension", "reasoning"]
-            }
-          }]
-        }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.ANY,
-            allowedFunctionNames: ["set_initial_dimension"]
-          }
-        }
+              reasoning: {
+                type: "string",
+                description: "Why this dimension is the best starting point.",
+              },
+            },
+            required: ["dimension", "reasoning"],
+          },
+        },
       },
+    ];
+
+    const messages = this.makeCacheableMessages(
+      userText,
+      system,
+      [],
+      `Reasoning mode: ${mode.toUpperCase()}\n\nDecide the initial dimension.`
+    );
+
+    const res = await this.completeMessages(messages, {
+      tools,
+      toolChoice: { type: "function", function: { name: "set_initial_dimension" } },
+      thinking: true,
+      cacheLabel: "InitialDimension",
+      sessionId,
     });
 
-    const call = response.functionCalls?.[0];
-    if (call && call.name === "set_initial_dimension") {
-      const args = call.args as any;
-      return {
-        dimension: args.dimension as Dimension,
-        reasoning: args.reasoning,
-      };
-    } else {
-      // Fallback: Try to parse JSON from text
+    const toolCall = res.choices[0]?.message?.tool_calls?.[0] as any;
+    if (toolCall?.function?.name === "set_initial_dimension") {
       try {
-        const cleanedText = this.extractJson(response.text || "");
-        const decision = JSON.parse(cleanedText);
-        if (decision.dimension && decision.reasoning) {
-          return {
-            dimension: decision.dimension as Dimension,
-            reasoning: decision.reasoning,
-          };
-        }
-      } catch (e) {
-        // Fallback failed
+        const args = JSON.parse(toolCall.function.arguments);
+        return {
+          dimension: args.dimension as Dimension,
+          reasoning: args.reasoning,
+        };
+      } catch {
+        // fall through
       }
+    }
 
-      console.error("Controller failed to set initial dimension. Raw text:", response.text);
+    try {
+      const text = res.choices[0]?.message?.content ?? "";
+      const parsed = JSON.parse(this.extractJson(text));
+      if (parsed.dimension && parsed.reasoning) {
+        return {
+          dimension: parsed.dimension as Dimension,
+          reasoning: parsed.reasoning,
+        };
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+
+    const text = res.choices[0]?.message?.content ?? "";
+    const foundDimension = Object.values(Dimension).find(d => 
+      new RegExp(`\\b${d}\\b`, "i").test(text)
+    );
+    if (foundDimension) {
       return {
-        dimension: Dimension.UNDERSTANDING,
-        reasoning: "Fallback to Understanding due to controller decision failure.",
+        dimension: foundDimension,
+        reasoning: text.substring(0, 500),
       };
     }
+
+    console.error("Controller failed to set initial dimension. Raw response:", res.choices[0]?.message?.content);
+    return {
+      dimension: Dimension.INTERACTIVE,
+      reasoning: "Mandatory initial dimension fallback to Interactive.",
+    };
   }
 
+  // ── runGrounding ───────────────────────────────────────────────────────────
   async runGrounding(
     userInput: string | ThoughtPart[],
     reasoningGraph: ReasoningGraph
   ): Promise<any> {
-    const fullTrace = this.getContext(reasoningGraph);
+    const userText = typeof userInput === "string" ? `"${userInput}"` : "[MULTIMODAL INPUT]";
+    const history = this.buildHistory(reasoningGraph);
+    const sessionId = reasoningGraph.metadata?.sessionId;
 
-    const groundingPrompt = `SYSTEM: You are the GROUNDING AGENT — the truth-keeper of this cognitive loop.
+    // Static grounding system prompt — never changes → cache hits ✅
+    const system = `SYSTEM: You are the GROUNDING AGENT — the truth-keeper of this cognitive loop.
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR ROLE:
-You are not here to generate new ideas. You are here to VERIFY what has been 
-thought so far. Your job is to identify hallucinations, unsupported claims, 
+You are not here to generate new ideas. You are here to VERIFY what has been
+thought so far. Your job is to identify hallucinations, unsupported claims,
 and leaps of logic that lack foundation in reality, evidence, or known facts.
 
-This dimension is called once every three loops to prevent the system from 
+This dimension is called once every three loops to prevent the system from
 building increasingly unreliable reasoning on top of unverified assumptions.
 ═══════════════════════════════════════════════════════════════════════════════
 
-CONTEXT REVIEW:
-Below is the complete reasoning trace so far:
-
-${fullTrace}
-
-═══════════════════════════════════════════════════════════════════════════════
 YOUR GROUNDING ANALYSIS TASK:
-
 1. CLAIM EXTRACTION: Identify all factual claims made across the reasoning steps.
-   Extract each claim explicitly. Do not paraphrase.
-
-2. GROUND TRUTH VERIFICATION: For EACH claim, evaluate:
-   - Is this grounded in established facts, research, or known data?
-   - Is this a reasonable inference from the facts?
-   - Is this an assumption presented as fact?
-   - Is this purely speculative but presented as certain?
-
+2. GROUND TRUTH VERIFICATION: For EACH claim, evaluate grounding and evidence.
 3. HALLUCINATION SEVERITY ASSESSMENT:
-   - CRITICAL HALLUCINATION: A claim presented as fact that is provably false,
-     contradicts known reality, or is a pure fabrication.
-   - MODERATE HALLUCINATION: A claim that lacks sufficient evidence, overgeneralizes,
-     or makes unjustified leaps from evidence to conclusion.
-   - NEGLIGIBLE HALLUCINATION: A minor unverified detail that does not materially
-     affect the reasoning chain. (e.g., an approximation, an informal statement
-     that's directionally correct even if not precisely accurate)
-   - NO HALLUCINATION: The claim is well-grounded and supported.
-
+   - CRITICAL: Provably false or pure fabrication.
+   - MODERATE: Lacks sufficient evidence or unjustified leaps.
+   - NEGLIGIBLE: Minor unverified detail, directionally correct.
+   - NONE: Well-grounded and supported.
 4. TRACE INTEGRITY CHECK: Does the reasoning chain depend on any hallucinations?
-   If a critical claim is false, does the entire logic collapse?
+5. CONFIDENCE CALIBRATION: Is the system overconfident given evidence quality?
 
-5. CONFIDENCE CALIBRATION: Is the system overconfident in its conclusions given
-   the quality of its sources and reasoning?
-
-═══════════════════════════════════════════════════════════════════════════════
 YOUR REPORT STRUCTURE:
+VERIFIED CLAIMS, QUESTIONABLE CLAIMS, HALLUCINATIONS DETECTED,
+CONFIDENCE ASSESSMENT, FINAL VERDICT.
 
-GROUNDING REPORT:
-─────────────────────────────────────────────────────────────────────────────
+FINAL VERDICT must be one of:
+✓ NO HALLUCINATIONS
+⚠ MINOR HALLUCINATIONS DETECTED
+✗ HALLUCINATIONS REQUIRE ATTENTION
 
-VERIFIED CLAIMS (Well-grounded):
-[List claims that are factually sound and well-supported]
-
-QUESTIONABLE CLAIMS (Lack sufficient evidence):
-[List claims that are assumptions or overgenralizations]
-- Claim: [statement]
-  Issue: [why it's unsupported]
-  Recommendation: [what evidence would be needed]
-
-HALLUCINATIONS DETECTED (Provably false or fabricated):
-[List claims that are false or contradicts known facts]
-- Claim: [false statement]
-  Reality: [what is actually true]
-  Severity: [CRITICAL / MODERATE]
-
-CONFIDENCE ASSESSMENT:
-- Current confidence level: [HIGH / MODERATE / LOW]
-- Justified by evidence quality: [YES / PARTIALLY / NO]
-- Recommendation: [Proceed with confidence / Proceed with caution / Major revision needed]
-
-FINAL VERDICT:
-[One of the following:]
-✓ NO HALLUCINATIONS: All major claims are grounded in fact. The reasoning chain is sound.
-⚠ MINOR HALLUCINATIONS DETECTED: Some negligible details are unverified, but the core logic is intact.
-✗ HALLUCINATIONS REQUIRE ATTENTION: Unverified or false claims undermine reasoning. Return to affected dimension.
-
-═══════════════════════════════════════════════════════════════════════════════
 CRITICAL INSTRUCTIONS:
-
-1. You are a SKEPTIC, not a believer. Assume claims are unproven until verified.
+1. You are a SKEPTIC. Assume claims are unproven until verified.
 2. Be PRECISE about what you know vs. what you're assuming.
-3. Do NOT hesitate to say "this is false" if the evidence shows it clearly.
-4. If you find NO hallucinations, say so explicitly and confidently.
-5. Your output is for the CONTROLLER. Be direct and actionable.
-6. Do not generate new reasoning. ONLY evaluate existing reasoning.
+3. Do NOT hesitate to say "this is false" if evidence shows it.
+4. Do not generate new reasoning. ONLY evaluate existing reasoning.`;
 
-YOUR OUTPUT:
-Provide the Grounding Report in the structure above, then tell the controller:
-- WHETHER the reasoning is safe to proceed with
-- IF hallucinations exist, which steps need re-examination
-- CONFIDENCE LEVEL the controller should have in current conclusions`;
+    const groundingMessages = this.makeCacheableMessages(
+      userText,
+      system,
+      history,
+      "Perform grounding analysis on all reasoning steps above."
+    );
 
-    const gResponse = await this.cachedGenerate({
-      model: FLASH_MODEL,
-      contents: typeof userInput === 'string' ? groundingPrompt : [...userInput, { text: groundingPrompt }],
-      config: {
-        responseMimeType: "application/json",
-      }
+    const res = await this.completeMessages(groundingMessages, {
+      thinking: true,
+      cacheLabel: "Grounding",
+      sessionId,
     });
 
     try {
-      const jsonText = gResponse.text || "{}";
-      const parsed = JSON.parse(jsonText);
+      const jsonText = res.choices[0]?.message?.content ?? "{}";
+      const parsed = JSON.parse(this.extractJson(jsonText));
       return {
         verifiedClaims: parsed.verifiedClaims || [],
         questionableClaims: parsed.questionableClaims || [],
@@ -1580,12 +1819,11 @@ Provide the Grounding Report in the structure above, then tell the controller:
   // ── Async Code Side-Channel ───────────────────────────────────────────────
 
   dispatchCodeRequest(request: CodeRequest): void {
-    console.log(`[Gemini Engine] Dispatching code request ${request.id} (${request.language})`);
+    console.log(`[DeepSeek Engine] Dispatching code request ${request.id} (${request.language})`);
     request.status = 'launched';
     const entry: { promise: Promise<CodeResult>; result?: CodeResult } = {
       promise: runCodeInSandbox(request),
     };
-    // When the promise settles, store the result for synchronous polling
     entry.promise.then(result => {
       entry.result = result;
       request.status = result.exitCode === 124 ? 'timeout' : 'completed';
@@ -1631,4 +1869,5 @@ Provide the Grounding Report in the structure above, then tell the controller:
     graph.metadata.totalBranches++;
     console.log(`[ReasoningGraph] Backtracked to node ${targetNodeId} (depth=${target.depth}). Branch: ${branchLabel}`);
   }
+
 }

@@ -1,0 +1,134 @@
+[
+  {
+    "agentRole": "answerer-internal",
+    "proposedAddition": "IMPORTANT: When describing the system's own architecture, explicitly distinguish claims that are directly supported by the system prompt text from those that are inferred or speculative. For any claim about the number, names, or order of dimensions, cite the exact prompt text or label it as 'inferred from context.' Do not assert a fixed dimension set unless the system prompt explicitly enumerates it.",
+    "rationale": "The INTERNAL answerer in Understanding (Step 2) introduced a fictional fixed 7-dimension pipeline without textual evidence. This addition forces evidence-based architectural claims, preventing schema-driven pattern completion from fabricating unsupported structure.",
+    "sessionId": "default",
+    "createdAt": 1784678874802,
+    "id": "f29c86f0-8e3c-4779-b4c1-bdf84c171ce4",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "answerer-external",
+    "proposedAddition": "IMPORTANT: When other answerers make claims about the system's architecture, do not accept them uncritically. Verify that their claims are supported by direct evidence from the system prompt. If not, flag the claim as unsupported in your own response. This prevents the propagation of unsupported assumptions.",
+    "rationale": "In Step 2, both ARCHIVAL and EXTERNAL answerers accepted the INTERNAL answerer's invented dimension set without verification, creating a false consensus. This instruction breaks social proof bias by requiring independent verification of architectural claims against the system prompt.",
+    "sessionId": "default",
+    "createdAt": 1784678874815,
+    "id": "3f36471f-5c9a-45a5-8138-e18d117a1d83",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "controller",
+    "proposedAddition": "IMPORTANT: Before routing to the next dimension, perform a quick consistency check: scan the most recent dimension's output for any claims about the system's own architecture (e.g., number of dimensions, names, fixed ordering). If any such claim is present and is not directly supported by the system prompt text, flag it and consider routing to a verification phase (Grounding or an equivalent) before proceeding further. Do not assume that all architectural claims made by answerers are accurate.",
+    "rationale": "The Controller in Step 2 accepted Understanding's output without verifying its architectural claims against the system prompt, allowing the hallucination to propagate to Procedural. This addition adds a lightweight verification gate at the Controller level, catching unsupported architectural assertions before they cascade into subsequent dimensions.",
+    "sessionId": "default",
+    "createdAt": 1784678874817,
+    "id": "b9511fda-8e04-4799-869b-cb32ee7adb0c",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "answerer-archival",
+    "proposedAddition": "When making claims about the internal behavior of a specific library (Three.js, GLSL, WebGL, etc.), you MUST trace the actual source code or official documentation before asserting a mechanism. Do not assert 'no needsUpdate needed' or 'version auto-increment applies' without having verified the exact caching logic in the library's source. If you cannot access the source, mark the claim as UNVERIFIED and note the uncertainty.",
+    "rationale": "The Meta-Cognition audit found that Archival falsely claimed 'no needsUpdate needed for array uniforms in Three.js r160+' by confusing BufferAttribute.version with uniform caching. This hallucination propagated into the Procedural spec and would have caused the GPU to never receive crack array updates at runtime. The root cause was an asserted but unverified claim about Three.js internals.",
+    "sessionId": "session-1784855034885-hmugk1ol04c",
+    "createdAt": 1784856634021,
+    "id": "7ef78d72-d593-4834-ba95-27d448812710",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "answerer-internal",
+    "proposedAddition": "Before finalizing any data structure that uses a scratch buffer, object pool, or reusable memory region, trace the LIFETIME of every stored reference: verify that no pointer or object reference stored across frames (persistent state) points into memory that a scratch pool can overwrite within a single frame's execution. Persistent state MUST use independently allocated objects (e.g., `new THREE.Vector3()`), not pooled scratch slots. If you use a circular buffer, verify it is write-only within a single function call and never returned or stored externally.",
+    "rationale": "The Meta-Cognition audit found that root.tip, root.dir, and root.initialDir were allocated from the 256-element scratch pool but stored as persistent cross-frame references. After ~1.4 seconds, the pool wrapped and silently corrupted these root positions with scratch noise — a CRITICAL bug that would manifest as random teleporting roots. The prompt failed to instruct the agent to trace object lifetimes.",
+    "sessionId": "session-1784855034885-hmugk1ol04c",
+    "createdAt": 1784856634027,
+    "id": "738c9270-de2d-467c-9b4f-784fafc52de9",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "synthesizer",
+    "proposedAddition": "After consolidating the Procedural specification, perform a CREATIVE-PROCEDURAL ALIGNMENT CHECK: extract each qualitative parameter from the Creative dimension's output (e.g., 'rough surface', 'silver-white color', 'translucent glow') and verify that the Procedural specification has a corresponding NUMERIC or STEP-GATED driver (shader uniform, material property, environment parameter) for each one. If any Creative parameter maps to NO procedural driver, or maps to a single monotonic scalar that collapses multiple stages into one gradient, flag this as a MISALIGNMENT and require the answerer-internal to add a dedicated driver (e.g., separate roughness uniform, opacity uniform, emissive uniform) with step-function transitions at stage boundaries, not smooth interpolation.",
+    "rationale": "The Meta-Cognition audit found that the Creative vision's three-stage ontogeny (Nigredo→Albedo→Rubedo with distinct roughness, translucency, and hue at each stage) collapsed into a single monotonic uWarmth scalar in the Procedural spec. The synthesizer failed to trace each Creative parameter to a Procedural driver. This resulted in 3 intended stages becoming 2 perceptible stages. The fix requires the synthesizer to explicitly match Creative parameters to Procedural drivers and flag missing or collapsed mappings.",
+    "sessionId": "session-1784855034885-hmugk1ol04c",
+    "createdAt": 1784856634028,
+    "id": "6a7e6f96-12f7-43e1-894c-0b657919d7ba",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "answerer-creative",
+    "proposedAddition": "CRITICAL CONSTRAINT — USER PARAMETER INVARIANCE: The user's Interactive-confirmed parameters (helicopter type, duration, visual quality tier, combat inclusion, time of day) are INVOLATE BOUNDARIES. You may not change their fundamental meaning or emotional register. Specifically: (a) 'include ground fire' means conventional combat tracers and explosions — not spiritual metaphors, soul-ascension effects, or anti-ballistic trajectories. (b) 'midday' means harsh, high-contrast documentarian lighting throughout the film — the grade cannot drift into surreal sunset, hallucinatory dreamscape, or sepia-magenta dissolution. (c) 'premium visual quality' means clean, polished rendering — intentional image degradation (stutter, chromatic aberration, desaturation scars) requires explicit user approval via the Interactive dimension before inclusion. If your creative vision leads you to propose something that changes the fundamental emotional register of a user-confirmed parameter, you MUST explicitly flag this as a 'Genre Shift Warning' and recommend routing to Interactive for re-consent. You may not assume creative license over user-confirmed parameters.",
+    "rationale": "The Creative dimension proposed ember-soul tracers (reinterpreting 'ground fire' as a spiritual metaphor) and a documentary-to-hallucinatory color arc (overwriting 'midday' with dreamscape) — both fundamental genre shifts the user never requested. This prompt addition makes user-invariant parameters inviolate and forces explicit flagging of any proposed shift, preventing the Creative-Core contradiction identified in Finding A.",
+    "sessionId": "session-1785039886993-w37jgomjig",
+    "createdAt": 1785041434779,
+    "id": "1d9fe9d0-11ab-4b02-94a8-365200f20c52",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "answerer-external",
+    "proposedAddition": "COST/FEASIBILITY CLAIM VERIFICATION: Before asserting a quantitative claim about performance (ms cost, triangle count, draw calls, frame rate), you MUST trace its provenance. Acceptable provenance types: (a) EMPIRICAL — computed via code execution using actual three.js API timing, existing npm package benchmarks, or your knowledge of documented WebGL cost models (specify which). (b) DERIVED — computed from first-principles using known WebGL costs (e.g., 'ShaderPass with N texture reads costs approximately N × 0.15ms at 1080p'). (c) ESTIMATE — explicitly flagged as 'UNVERIFIED ESTIMATE requiring Grounding verification' with a justification for the estimate. Unacceptable: asserting a cost figure (like '0.8ms additional cost' or 'feasible at 30fps') with no traceable provenance. If you cannot trace a claim to one of these categories, you must flag it as UNVERIFIED rather than asserting it as fact.",
+    "rationale": "The Creative dimension's claimed '0.8ms additional cost' for the Trauma Accumulation Engine was hallucinated — the realistic cost is 1.1-1.8ms (40-90% higher). The Procedural dimension made multiple unverified performance claims (17.5ms total frame, 1.0ms for CanopyShaftsPass, etc.). This prompt forces provenance tracking for ALL cost claims, preventing Finding B's unsupported budget hallucination.",
+    "sessionId": "session-1785039886993-w37jgomjig",
+    "createdAt": 1785041434798,
+    "id": "acee8e99-d478-4fee-b762-f68eee89640e",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "synthesizer",
+    "proposedAddition": "IMPLEMENTATION PROVENANCE REQUIREMENT: When your synthesized output references a function, class, shader, texture, or algorithm (e.g., 'canopyShaftsShader', 'loadLUTTexture', 'perlin3D', 'terrainHeight(x,z)', 'path.getCurvatureAt(t)'), you MUST specify one of: (a) IMPORT PATH — the exact npm package or three.js module path (e.g., 'import { SimplexNoise } from \"simplex-noise\";'). (b) INLINE CODE — if less than 30 lines, provide the implementation directly in the output. (c) EXISTING URL — link to an existing three.js example or GitHub gist. (d) PLACEHOLDER — explicitly flagged as 'PLACEHOLDER — requires implementation' with a note on what the implementation must do. Any component referenced without one of these is considered a hallucinated placeholder and will be flagged by Meta-Cognition. If you cannot determine the implementation source, flag it as PLACEHOLDER rather than pretending it exists.",
+    "rationale": "The Procedural and Creative dimensions together referenced 7 components that don't exist in the three.js ecosystem (canopyShaftsShader, vignetteShader, loadLUTTexture, generateCausticTexture, perlin3D, terrainHeight function, path.getCurvatureAt — which doesn't exist on CatmullRomCurve3). The LUT loading mechanism, canopy shafts shader, and noise function are BLOCKING dependencies with no implementation specified. This prompt forces answerers to trace every referenced component to an actual source, eliminating Finding C's placeholder epidemic.",
+    "sessionId": "session-1785039886993-w37jgomjig",
+    "createdAt": 1785041434800,
+    "id": "8a9ef735-e8cd-4d18-b418-fa402ee73157",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "answerer-internal",
+    "proposedAddition": "CRITICAL: When writing any mathematical formula or physics-based algorithm, you MUST verify dimensional consistency before outputting. Explicitly state the units of every variable, confirm left-hand and right-hand sides share the same physical dimension (e.g., m/s² = m/s², not 1/parameter-units = m/s²), and if uncertain, derive the formula from first principles rather than writing from intuition. A formula that looks plausible but has mismatched units is a hallucination—do not output it.",
+    "rationale": "The banking formula hallucination occurred because the agent wrote `atan2(lateralAccel, 9.81)` without verifying that `lateralAccel` (a parameter-derivative with units 1/param-t) had the same dimension as `g` (m/s²). A unit-checking requirement would have caught this mismatch before output, saving 2 hours of downstream debugging. The existing prompt emphasizes 'factual accuracy' and 'logical consistency' but does not specifically require dimensional verification for mathematical code—this is a measurable gap.",
+    "sessionId": "session-1785042746479-a49x1k5h6k",
+    "createdAt": 1785043604879,
+    "id": "a3eb1933-9d75-4830-962d-c1597fd22add",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "controller",
+    "proposedAddition": "After the Procedural dimension produces its step-by-step plan, you MUST add a cross-reference verification step: compare every explicit technical commitment made in earlier dimensions (Understanding's scoping decisions and Interactive's chosen options) against the Procedural plan's specific implementation details. If any implementation detail contradicts or downgrades a prior commitment (e.g., committing to 'maximal cinematic' but including an optimization cascade that removes DoF), flag the contradiction immediately and either revise the plan or return for re-scoping before proceeding.",
+    "rationale": "The Controller routed the Procedural output forward without detecting that the optimization cascade silently contradicted the 'maximal cinematic' commitment. The existing prompt says 'synthesizes key findings into a concise summary' but does not mandate cross-dimension commitment verification. Adding this check would catch the contradiction between scope and implementation at routing time rather than leaving it for a later meta-cognition audit.",
+    "sessionId": "session-1785042746479-a49x1k5h6k",
+    "createdAt": 1785043604881,
+    "id": "4180b6f2-08f7-4ba3-9623-e297602146c0",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "synthesizer",
+    "proposedAddition": "During monologue consolidation, compare the relative effort allocation across all phases against the user's expressed scope. Flag when gold-plating features (those not explicitly requested and not necessary for core function) consume more than 20% of the total step count or estimated effort. Specifically identify three categories: (a) Required—directly answers the query, (b) Enhancement—defensibly supports the stated quality level, (c) Gold-plating—adds features not implied. If gold-plating exceeds 20%, recommend deferring those steps to a bonus phase or removing them.",
+    "rationale": "The plan's 52% gold-plating rate went entirely unremarked in the synthesizer's output. The synthesizer checks for 'logical consistency' but has no frame of reference for scope discipline. Adding a scoping ratio check would have caught understory foliage, god rays, dust particles, and fade transitions as unnecessary additions, reducing the plan's estimated implementation time by ~10-15 hours while better serving the user's actual request.",
+    "sessionId": "session-1785042746479-a49x1k5h6k",
+    "createdAt": 1785043604886,
+    "id": "5961a862-bc20-4835-8957-87ee9fc70d10",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  }
+]

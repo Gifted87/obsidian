@@ -1,0 +1,5 @@
+CROSS_SESSION_MARKER
+Written at: 2026-07-03T00:24:18.905077
+Session: Step 29
+Override: ACTIVE
+Purpose: Test persistence across session boundaries

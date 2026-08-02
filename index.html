@@ -3,9 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Obsidian Thinking Machine</title>
+    <title>Ovan</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ovan: '#020202',
+              obsidian: '#020202',
+              ether: '#0a0a0a',
+              glass: 'rgba(255, 255, 255, 0.04)',
+              'glass-border': 'rgba(255, 255, 255, 0.12)',
+            },
+            fontFamily: {
+              sans: ['Ubuntu', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+              mono: ['Ubuntu Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+            }
+          }
+        }
+      }
+    </script>
   </head>
-  <body>
+  <body class="bg-[#020202] text-gray-100 antialiased selection:bg-indigo-500/30 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
