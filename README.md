@@ -1,268 +1,58 @@
-> **🚀 New: The OVAN Agent Harness has just been added.**
->
-> OVAN is no longer just a thinking machine — it now executes what it thinks. The agent harness takes the final reasoned plan from the cognitive engine and carries it out autonomously, end to end. Here are the seven core capabilities:
->
-> 1. **5-Agent Consensus Planning Swarm** — A Technical Architect, Dependency Analyst, Execution Sequencer, Meta-Reasoning Auditor, and Consolidator deliberate on every task before a single line of code is touched, producing a conflict-free Directed Acyclic Graph (DAG) of work.
-> 2. **Parallel Batch Execution** — Tasks with no shared dependencies run simultaneously, with the executor only advancing to the next batch once the current one is fully verified.
-> 3. **Autonomous Worker Agents (ReAct Loops)** — Each worker reasons and acts in a tight loop, using AST-aware code transformers, terminal runners, file tools, and a Playwright browser controller to complete its assigned task.
-> 4. **FileLockManager with Deadlock Detection** — Parallel workers compete for files safely. Exclusive locks are queued per-file in FIFO order, and the engine automatically detects and breaks circular wait cycles before they deadlock a batch.
-> 5. **Manager Agents with Outcome Modeling** — Before a batch starts, the Manager formulates an exact model of what success looks like. After workers finish, it verifies against that model using live terminal execution, AST inspection, and browser screenshots — and applies inline fixes if anything falls short.
-> 6. **AST-Aware Code Editing** — All code modifications operate at the syntax-tree level, not string replacement, ensuring edits are structurally valid regardless of formatting or whitespace.
-> 7. **Real-Time SSE Execution Dashboard** — Every event — batch starts, worker tool calls, file locks acquired and released, manager verdicts, and job completion — streams live to the frontend over Server-Sent Events.
->
-> For the full technical breakdown, see [documentation.md](documentation.md).
+# Obsidian
 
----
+Obsidian is an experimental local application for structured, multi-step LLM workflows. It combines a React interface with an Express API, supports Gemini and DeepSeek providers, and includes a session library and an optional task-planning and execution harness.
 
-**OVAN AGENT HARNESS: Building a Thinking Machine**
+The project is a research prototype. Its generated analysis is not guaranteed to be accurate, and the execution harness can modify files and run shell commands.
 
-Einstein was not considered a genius because he knew more physics than his contemporaries. In fact, there were physicists of his era with broader technical knowledge. What set Einstein apart was something harder to name — the architecture of his reasoning. He asked different questions, approached problems from unexpected angles, and crucially, he turned his thinking back on itself. He reasoned *with* what he knew in ways others did not.
+## Features
 
-This tells us something important about intelligence: it is not merely a function of knowledge. It is shaped by the structure of the thinking process — what questions are asked, in what order, from what angles, and with what degree of self-correction.
+- Run multi-step thinking sessions across defined reasoning dimensions.
+- Switch between Gemini and DeepSeek providers and configure API keys through environment variables.
+- Save and revisit sessions, inspect reasoning graphs, and view prompt-memory entries.
+- Plan tasks as dependency graphs and stream worker, manager, and execution events to the interface.
+- Review job status and logs through the local API.
 
-This insight is the foundation of OVAN.
+## Requirements
 
----
+- Node.js 20 or later
+- An API key for Gemini or DeepSeek
 
-**Why OVAN Exists**
-
-We already have systems with extraordinary knowledge. A single large language model knows more than any single human being — more history, more science, more literature, more code. Knowledge, in that sense, is a solved problem.
-
-What has not been solved is the *process* of thinking. If intelligence = knowledge × reasoning structure, and LLMs already dominate on knowledge, then closing the gap on reasoning structure should produce something that exceeds human intelligence. Since intelligence is shaped by how one moves through a problem space — The evidence from history's greatest minds suggests it is — then the next frontier is not giving AI more information. It is giving AI a better way to think.
-
-OVAN is my first attempt to build that.
-
----
-
-**What OVAN Is**
-
-OVAN is a multi-agent thinking system designed to mirror the structure of deep human reasoning. At each step of the thinking process, six agents work in sequence, each doing a distinct job.
-
-**The Questioner** opens every step. It reads the full reasoning history and generates a single, precise, probing question — framed for the dimension being explored. Its only job is to ask the right question. It is explicitly forbidden from answering it.
-
-**Three Answerer Agents** respond to that question in parallel, each from a different epistemic standpoint:
-
-- The **Internal Answerer** reasons from first principles — the core mechanics, formal models, and intrinsic structure of the problem.
-- The **Archival Answerer** draws on collective memory — historical precedent, documented patterns, intellectual traditions, and what humanity has learned across time.
-- The **External Answerer** grounds the reasoning in the live world — current research, market data, external context, and logical verification that the reasoning is not in a vacuum.
-
-**The Meta Reasoning Agent** then reads all three answers and audits them — checking for factual accuracy, logical consistency, internal contradictions, and hallucinations. It does not replace any answerer. Its job is to produce a rigorous critique that the next agent uses as input.
-
-**The Thinking Agent** — the main thinker — does the hardest work. It takes the three initial perspectives, the meta-reasoning audit, and the original question, and engages in an exhaustive internal monologue: questioning premises, reconciling contradictions, playing devil's advocate, and working through the logic step by step. Only after this monologue does it produce a final consolidated insight — the output that gets passed to the controller.
-
-**The Controller** reads that consolidated insight alongside the full reasoning history and decides what to do next: which dimension to explore, why, and what the intent of the next step should be. When it judges that sufficient depth has been reached, it terminates the thinking loop and passes everything to the synthesizer.
-
-What gives this structure its reach is the framework of nine thinking dimensions — what I call the dimensions of cognition — through which the controller navigates:
-
-- **Understanding** — What does this actually mean, and where are its boundaries?
-- **Inquiry** — Why or how does this happen?
-- **Procedural** — What are the steps involved?
-- **Wonder** — What if things were different?
-- **Consequence** — What are the impacts and risks?
-- **Meta-Cognition** — How sound is the thinking so far?
-- **Creative** — What new possibilities exist?
-- **Causal** — What are the mechanics and root causes?
-- **Grounding** — Are the claims actually true? What evidence exists?
-
-The controller begins in one dimension. The questioner drives the inquiry. The three answerers respond. The meta reasoning agent audits. The thinking agent consolidates. The controller evaluates and chooses the next dimension. This cycle continues until the controller judges that sufficient depth has been reached — at which point, OVAN begins synthesizing a response.
-
----
-
-**Was It Successful?**
-
-OVAN is still highly experimental. The current answering agents are limited — they draw only from training data and shallow web searches. Future versions will equip them with richer tools for gathering information, tools like images and videos research, performing simulations, using tools, deep internet research and even performing experiments, and more. The architecture itself is still being refined.
-
-But the core hypothesis — that structuring the *process* of thinking, not just the store of knowledge, produces meaningfully better reasoning — has shown early promise. The reports generated by OVAN reflect a depth and coherence that flat, single-pass generation does not consistently achieve. You can explore reports generated by the OVAN thinking machine here: [github.com/Gifted87/OBSIDIAN-ARTIFACTS](https://github.com/Gifted87/OBSIDIAN-ARTIFACTS)
-
-The system is not yet what it will become. But it is a first, serious step toward something worth building: a machine that does not merely know, but genuinely *thinks*.
-
-The goal, ultimately, is superintelligence — not through brute scale, but through better architecture. OVAN is the beginning of that search.
-
----
-
-**OVAN as an Agent Harness**
-
-The thinking machine is only half of what OVAN is.
-
-The second half is what happens after thinking ends. Once OVAN has reasoned through a problem and produced a final report, that report is not just text — it becomes the specification for action. OVAN contains a full autonomous execution engine that can take a reasoned plan and carry it out, end to end, without human intervention at each step.
-
-This is what makes OVAN an agent harness, not just a reasoning system.
-
-The execution side of OVAN is built around five components:
-
-**The Planning Swarm** breaks the specification into a structured task graph — a DAG — through a deliberation between five specialized planning agents. A technical architect, a dependency analyst, an execution sequencer, a meta-reasoning auditor, and a final consolidator each contribute their perspective. Their proposals are reconciled into a single, conflict-free execution plan.
-
-**The Worker Agents** carry out individual tasks in parallel. Each worker is an autonomous ReAct loop — it reads files, writes code, runs commands, browses the web, and verifies its own output. Workers in the same batch can edit the same files safely, because the system manages file access at the lock level.
-
-**The Manager Agents** do not execute tasks themselves. They watch. Before a batch begins, a manager formulates an exact model of what success looks like. After the batch completes, it verifies the workers' output against that model — using terminal execution, code parsing, and live browser inspection — and fixes anything that falls short before signing off.
-
-**The Tooling Layer** is what gives agents their reach. Browser automation through Playwright. AST-aware code editing that modifies syntax trees rather than strings. Terminal execution with streaming logs. File operations with concurrency control.
-
-**The Provider Router** keeps the system running continuously. OVAN supports both Gemini and DeepSeek, switches between them at runtime, rotates across pools of API keys to avoid rate limits, and tracks prefix cache performance to minimize cost across long multi-step sessions.
-
-What this means in practice: you can hand OVAN a complex problem — build this application, refactor this codebase, investigate this architecture — and walk away. The cognitive engine reasons through the problem. The planning swarm structures the work. The worker agents execute it. The manager agents verify it. The result is delivered.
-
-That is the full loop. Thinking, planning, executing, verifying.
-
----
-
-**How to Use OVAN**
-
-Running OVAN on your laptop takes about ten minutes. Here is exactly what to do, step by step.
-
----
-
-**Step 1 — Get Your API Keys**
-
-OVAN supports two AI providers: Google Gemini and DeepSeek. You need at least one.
-
-**For Gemini:**
-1. Go to [aistudio.google.com](https://aistudio.google.com)
-2. Sign in with any Google account
-3. Click **"Get API Key"** in the top-left menu
-4. Click **"Create API key"** and copy the key that appears — it will look something like `AIzaSy...`
-
-**For DeepSeek:**
-1. Go to [platform.deepseek.com](https://platform.deepseek.com)
-2. Sign in and navigate to the API section
-3. Create an API key and copy it — it will look something like `sk-...`
-
-You can use both. OVAN will rotate across multiple keys automatically if you provide them. Keep your keys somewhere safe. You will need them in Step 4.
-
----
-
-**Step 2 — Install the Prerequisites**
-
-Before running OVAN, your laptop needs two things installed: **Node.js** and **Git**. If you already have them, skip ahead.
-
-**Installing Node.js** (version 20 or higher)
-- Go to [nodejs.org](https://nodejs.org) and download the **LTS** version
-- Run the installer and follow the on-screen steps
-- To confirm it worked, open your terminal and type: `node --version` — you should see a number like `v20.x.x`
-
-**Installing Git**
-- Go to [git-scm.com/downloads](https://git-scm.com/downloads) and download Git for your operating system
-- Run the installer with all default settings
-- To confirm it worked, type: `git --version` in your terminal
-
-> **What is a terminal?** On Mac, search for "Terminal" in Spotlight. On Windows, search for "Command Prompt" or "PowerShell". On Linux, it is usually under Applications → Terminal.
-
----
-
-**Step 3 — Download the Code**
-
-Open your terminal and run these two commands one at a time:
+## Run locally
 
 ```bash
-git clone https://github.com/Gifted87/ovan.git
-cd ovan
-```
-
-The first command downloads the project onto your laptop. The second command moves you into the project folder.
-
----
-
-**Step 4 — Add Your API Keys**
-
-Inside the project folder, you will find a file called `.env.example`. You need to copy it and fill in your keys.
-
-Run this in the terminal:
-
-```bash
+git clone https://github.com/Gifted87/obsidian.git
+cd obsidian
+npm ci
 cp .env.example .env
 ```
 
-Now open the new `.env` file in any text editor (Notepad, TextEdit, VS Code — anything works). Fill in your keys:
+Edit `.env` and replace the example values. Set `AI_PROVIDER` to `gemini` or `deepseek`, then provide the matching `GEMINI_API_KEY` or `DEEPSEEK_API_KEY`. For key rotation, use the corresponding comma-separated `GEMINI_API_KEYS` or `DEEPSEEK_API_KEYS` setting.
 
-```
-AI_PROVIDER="gemini"
+Start the API and frontend in separate terminals:
 
-GEMINI_API_KEY="AIzaSyXXXXXXXXXXXXXXXXXXXX"
-
-DEEPSEEK_API_KEYS="sk-XXXXXXXXXXXXXXXXXX"
-```
-
-If you have multiple keys for the same provider, separate them with commas. OVAN will rotate through them automatically.
-
-Save the file.
-
----
-
-**Step 5 — Install Dependencies**
-
-Dependencies are the small software packages that OVAN relies on to run. Install them with one command:
-
-```bash
-npm install
-```
-
-This may take a minute or two. You will see a lot of text scroll by — that is normal.
-
----
-
-**Step 6 — Run OVAN**
-
-OVAN has two parts: a **backend server** (the brain) and a **frontend interface** (the face). You need to run both at the same time, so you will need **two terminal windows** open side by side.
-
-**Terminal 1 — Start the server:**
 ```bash
 npm run server
 ```
 
-**Terminal 2 — Start the interface:**
 ```bash
 npm run dev
 ```
 
-Once both are running, open your browser and go to:
+Open <http://localhost:3000>. The API listens on port `3030`.
 
-```
-http://localhost:3000
-```
+## Project layout
 
-OVAN will be live and ready to use.
+- `src/` — React interface, provider clients, reasoning workflow, and execution agents
+- `server.ts` — Express API for thinking sessions, session storage, and execution jobs
+- `documentation.md` — detailed architecture notes
+- `memory/` — local session, execution, and prompt-memory data
 
----
+## Security and data handling
 
-**Troubleshooting**
+The server currently binds to `0.0.0.0`, enables unrestricted CORS, and does not authenticate API requests. The execution harness can run shell commands and read or write files in its configured working directory. Run it only in a trusted, isolated development environment; do not expose it to the public internet or an untrusted network.
 
-| Problem | Fix |
-|---|---|
-| `node: command not found` | Node.js is not installed. Repeat Step 2. |
-| `git: command not found` | Git is not installed. Repeat Step 2. |
-| The page does not load | Make sure both terminal commands from Step 6 are still running. |
-| API errors in the interface | Double-check that your `.env` file has the correct key and no extra spaces around it. |
+API keys belong in the ignored `.env` file. Never commit real credentials. The `memory/` directory can contain prompts, task details, generated reports, and file paths; review and keep personal session data out of public commits.
 
----
+## License
 
-**License**
-
-OVAN is open source and released under the [MIT License](LICENSE).
-
----
-
-**Build On This**
-
-OVAN is not a finished product. It is an open foundation — a first serious attempt to show that the architecture of thinking matters as much as the store of knowledge, and that thinking and doing can be unified in a single system. Version 1 is deliberately minimal. The agents are limited. The dimensions are a starting point, not a ceiling. The whole point is that someone, somewhere, should take this further than I can alone.
-
-If you are a developer, this is an invitation.
-
-The architecture is simple enough to understand in an afternoon and open enough to be taken in almost any direction. Some things worth building:
-
-**Richer answering agents** — agents that can browse the web deeply, analyse images and videos, run code, perform simulations, query databases, and call external APIs. The current agents are shallow. The framework is ready for agents that are not.
-
-**Better controller logic** — the controller that decides which thinking dimension to explore next is the heart of the system. Smarter routing, learned heuristics, or even a trained model for dimension selection could dramatically improve output quality.
-
-**New cognitive dimensions** — the eight dimensions I defined are not the only possible ones. There may be better decompositions. Ethical reasoning, probabilistic thinking, temporal analysis — the design space is wide open.
-
-**Memory and context** — OVAN currently thinks without memory. An agent that can recall past reasoning sessions, build a persistent model of a domain, or recognise when it has solved a similar problem before would be a qualitatively different thing.
-
-**Multi-model architectures** — the provider router already supports Gemini and DeepSeek. A version that routes different question types to different specialist models — mixing reasoning models, vision models, code models — could be far more capable.
-
-**Evaluation frameworks** — how do you measure whether a thinking machine is actually thinking better? Building rigorous benchmarks and evaluation pipelines for this kind of system is unsolved and important work.
-
-The repository is open. The licence is MIT. Take it, fork it, break it, rebuild it. If you build something interesting on top of this architecture, I want to know about it.
-
-The goal is not that OVAN wins. The goal is that the idea — that reasoning structure matters — gets tested, refined, and taken as far as it can go. That requires more than one person.
-
-Build something.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
