@@ -96,6 +96,7 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showModeModal, setShowModeModal] = useState(false);
   const [selectedMode, setSelectedMode] = useState<'fast' | 'deep'>('deep');
+  const [agentToolMode, setAgentToolMode] = useState<'react' | 'linear'>('react');
   const [provider, setProvider] = useState<'deepseek' | 'gemini'>('deepseek');
   const [interactivePrompt, setInteractivePrompt] = useState<InteractivePrompt | null>(null);
   const [interactiveAnswer, setInteractiveAnswer] = useState("");
@@ -357,7 +358,7 @@ export default function App() {
       const response = await fetch(apiUrl('/api/think'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input, files, mode, sessionId: newSessionId, context: context.trim() || undefined })
+        body: JSON.stringify({ input, files, mode, agentToolMode, sessionId: newSessionId, context: context.trim() || undefined })
       });
 
       if (!response.body) throw new Error("No response body");
@@ -470,9 +471,10 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           input: promptToSend, 
-          mode: selectedMode, 
-          sessionId: currentSessionIdRef.current, 
-          isContinuation: true 
+          mode: selectedMode,
+          agentToolMode,
+          sessionId: currentSessionIdRef.current,
+          isContinuation: true
         })
       });
 
@@ -1511,6 +1513,41 @@ export default function App() {
                   Choose the depth of the neural substrate for this contemplation.
                 </p>
               </div>
+
+              {provider === 'deepseek' && <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-bold uppercase tracking-widest text-white">Agent execution</span>
+                  <span className="text-[10px] leading-relaxed text-gray-500">Choose whether worker agents can call tools and continue in a ReAct loop.</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={agentToolMode === 'react'}
+                    onClick={() => setAgentToolMode('react')}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                      agentToolMode === 'react'
+                        ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-300"
+                        : "border-white/10 text-gray-500 hover:border-white/20 hover:text-white"
+                    )}
+                  >
+                    Tools + ReAct
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={agentToolMode === 'linear'}
+                    onClick={() => setAgentToolMode('linear')}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                      agentToolMode === 'linear'
+                        ? "border-indigo-400/40 bg-indigo-500/10 text-indigo-300"
+                        : "border-white/10 text-gray-500 hover:border-white/20 hover:text-white"
+                    )}
+                  >
+                    Linear
+                  </button>
+                </div>
+              </div>}
 
               <div className="grid grid-cols-1 gap-4">
                 <button 

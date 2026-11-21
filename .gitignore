@@ -10,11 +10,13 @@ coverage/
 # AI Caches and Generated Codebase
 .cdms_model/
 .procoder/
+.freebuff/
 compiled_codebase.txt
 
 # Runtime-generated artifacts
 sandbox_workspace/
 memory/sessions/
+memory/execution/*.json
 public/downloads/
 logs/
 reports/

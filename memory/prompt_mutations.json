@@ -130,5 +130,27 @@
     "appliedCount": 0,
     "effectivenessVotes": 0,
     "status": "ACTIVE"
+  },
+  {
+    "agentRole": "controller",
+    "proposedAddition": "MANDATORY PROVENANCE LEDGER: Before routing to the Interactive dimension (final output), you MUST verify that every numerical or qualitative claim in the accumulated reasoning stream is explicitly tagged with one of four provenance labels: [VERIFIED - source-cited with line numbers/code execution], [DESIGN TARGET - tunable parameter with no empirical basis], [UNVERIFIED ESTIMATE - performance/cost guess without benchmark], or [ARCHITECTURAL INVARIANT - design constraint, not a factual claim]. If any claim lacks a label, you MUST route to Meta-Cognition for re-labeling before proceeding. You must also verify that 'locked' parameters referenced in dependency gates (e.g., Stage 0 'locked thresholds') actually have values assigned somewhere in the stream; if they do not, flag it as a HIGH-severity logical gap (GAP) and require resolution or explicit deferral labeling before final synthesis.",
+    "rationale": "The Meta-Cognition audit revealed a systematic failure mode: ~23 numerical claims were carried in a 'factual register' despite being unverified design targets, and one HIGH-severity logical gap (GAP-1) existed where Stage 0 claimed to 'lock' state machine thresholds that were never actually assigned values. The Controller, which governs the cognitive loop and routes to final output, failed to enforce provenance hygiene or verify that dependency gates were actually satisfied with concrete values. By mandating a provenance ledger check and a 'locked parameter completeness' check before final routing, the Controller would have caught both the epistemic conflation (verified facts fused with unverified targets) and the missing values (GAP-1) before the plan was finalized, forcing either explicit labeling or resolution.",
+    "sessionId": "7a3c8a19-4b5d-4bb2-ac12-2aaad92bd49b",
+    "createdAt": 1793221562029,
+    "id": "2f7293e7-7f91-4f1b-8fc3-548abf932866",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "agentRole": "answerer-internal",
+    "proposedAddition": "EPISTEMIC TAGGING DISCIPLINE: Every numerical value you present (PBR scalars, light intensities, camera positions, segment counts, easing rates, state thresholds, performance estimates) MUST be explicitly tagged inline as [DESIGN TARGET], [UNVERIFIED ESTIMATE], or [VERIFIED] (with source). You must NEVER present a tunable parameter in the same prose register as a source-verified fact. Specifically: (1) When listing a material property block, you MUST separate 'verified existence' (e.g., 'clearcoat is a native MeshPhysicalMaterial property') from 'chosen value' (e.g., 'we set clearcoat = 1.0 [DESIGN TARGET]') into distinct lines or sub-sections. (2) When stating a 'single performance lever' or 'critical constraint' without benchmark evidence, you MUST tag it [UNVERIFIED ESTIMATE - no timing provenance]. (3) When a parameter is load-bearing but numerically void (e.g., beta, tau, sigma, mu, epsilon), you MUST label it [UNDEFINED - must be assigned before plan is complete] rather than leaving it as a silent placeholder. This prevents 'confidence-tone laundering' where design choices masquerade as engineering facts.",
+    "rationale": "The Meta-Cognition audit identified the Internal answerer as a primary source of 'epistemic conflation': it presented PBR scalars (clearcoat 1.0, iridescence 0.5, metalness 0.0-0.2), light intensities (ambient 0.2, key 4500K), and the segment count (128x64-256x128) in a declarative 'specification' tone that fused verified property existence with unverified design values. The audit specifically flagged the PBR parameter block as a 'HIGH RISK OF CONFLATION' because the verified iridescenceIOR default (1.3) was listed adjacent to unverified design targets (iridescence 0.5, clearcoat 1.0), creating a false association. Additionally, the Internal answerer labeled the segment count as 'the single performance variable' without any benchmark evidence, and it left the core field constants (beta, tau, sigma, mu, epsilon) as silent placeholders despite them being structurally load-bearing for the shader math. The External answerer in Step 1 correctly applied [UNVERIFIED ESTIMATE] tags to GPU cost estimates, but the Internal and Archival answerers did not, creating inconsistent epistemic hygiene across the tripartite recall. This mutation forces the Internal answerer to adopt the stricter tagging discipline that the External answerer already demonstrated, preventing the laundering-by-omission that the audit flagged.",
+    "sessionId": "7a3c8a19-4b5d-4bb2-ac12-2aaad92bd49b",
+    "createdAt": 1793221562043,
+    "id": "002eac6f-844c-4d51-8ef4-9db8101df671",
+    "appliedCount": 0,
+    "effectivenessVotes": 0,
+    "status": "ACTIVE"
   }
 ]

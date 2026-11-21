@@ -474,6 +474,8 @@ function makeClient(sessionId?: string): OpenAI {
   return new OpenAI({
     apiKey: deepSeekKeyRotator.getNextKey(sessionId),
     baseURL: DEEPSEEK_BASE_URL,
+    // Fail visibly when the inference server stops returning completions.
+    timeout: 45_000,
   });
 }
 
@@ -588,12 +590,17 @@ export class DeepSeekEngine implements IThinkingEngine {
   constructor(
     model = DEFAULT_MODEL,
     private onRetry?: (message: string) => void,
-    private onEvent?: (type: string, payload: any) => void
+    private onEvent?: (type: string, payload: any) => void,
+    private toolMode: "react" | "linear" = "react"
   ) {
     this.model = model;
   }
 
   /** Returns the module-level global cache stats (shared across all engine instances). */
+  public setToolMode(toolMode: "react" | "linear"): void {
+    this.toolMode = toolMode;
+  }
+
   public getCacheStats(): CacheStats {
     return globalCacheTracker.getStats();
   }
@@ -610,12 +617,16 @@ export class DeepSeekEngine implements IThinkingEngine {
         String(error).includes("503") ||
         String(error).includes("429");
 
+      if (!isTransient) {
+        throw error;
+      }
+
       if (retries <= 0) {
         console.error("[DeepSeekEngine] Max retries exceeded.", error);
         throw error;
       }
 
-      const waitTime = isTransient ? delay : delay;
+      const waitTime = delay;
       const message = `Neural Congestion Detected (${isTransient ? '503/429' : 'Error'}). Retrying in ${Math.round(waitTime / 1000)}s... (${retries} attempts left)`;
 
       console.warn(message, error);
@@ -722,32 +733,25 @@ export class DeepSeekEngine implements IThinkingEngine {
     opts: {
       tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
       toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
-      thinking?: boolean;
+      maxTokens?: number;
       cacheLabel?: string;
       sessionId?: string;
     } = {}
   ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
     const client = makeClient(opts.sessionId);
 
-    const requestBody: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+    const requestBody: any = {
       model: this.model,
       messages,
+      max_tokens: opts.maxTokens,
+      // Qwen3.8 defaults to thinking mode. The vLLM endpoint supports this
+      // request-level switch; omit hidden reasoning to return tool decisions promptly.
+      chat_template_kwargs: { enable_thinking: false },
       ...(opts.tools ? { tools: opts.tools } : {}),
     };
 
     if (opts.tools) {
-      if (opts.thinking) {
-        // DeepSeek reasoning mode supports native tools but strictly rejects 
-        // forced tool_choice. We explicitly enforce "auto".
-        requestBody.tool_choice = "auto";
-      } else {
-        requestBody.tool_choice = opts.toolChoice ?? "auto";
-      }
-    }
-
-    if (opts.thinking) {
-      (requestBody as any).thinking = { type: "enabled" };
-      (requestBody as any).reasoning_effort = "high";
+      requestBody.tool_choice = opts.toolChoice ?? "auto";
     }
 
     const response = await this.retry(() => client.chat.completions.create(requestBody));
@@ -762,7 +766,6 @@ export class DeepSeekEngine implements IThinkingEngine {
     opts: {
       tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
       toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
-      thinking?: boolean;
       cacheLabel?: string;
       sessionId?: string;
     } = {}
@@ -781,9 +784,31 @@ export class DeepSeekEngine implements IThinkingEngine {
     return text.trim();
   }
 
+  private async runAgent(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    opts: { tools?: OpenAI.Chat.Completions.ChatCompletionTool[]; cacheLabel?: string; sessionId?: string },
+    personaPrefix: string
+  ): Promise<string> {
+    if (this.toolMode === "react") {
+      return this.runReActLoop(messages, opts, personaPrefix);
+    }
+
+    const response = await this.completeMessages(messages, {
+      cacheLabel: opts.cacheLabel,
+      sessionId: opts.sessionId,
+    });
+    const message = response.choices[0]?.message;
+    const reasoningContent = (message as any)?.reasoning_content;
+    const content = message?.content;
+    return [
+      reasoningContent ? `<thinking>\n${reasoningContent}\n</thinking>` : "",
+      content || "",
+    ].filter(Boolean).join("\n\n");
+  }
+
   private async runReActLoop(
     initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-    opts: { tools?: OpenAI.Chat.Completions.ChatCompletionTool[]; cacheLabel?: string; thinking?: boolean; sessionId?: string },
+    opts: { tools?: OpenAI.Chat.Completions.ChatCompletionTool[]; cacheLabel?: string; sessionId?: string },
     personaPrefix: string,
     maxIterations = 5
   ): Promise<string> {
@@ -1108,9 +1133,9 @@ return [].`;
     }
 
     const [initialInternal, initialArchival, initialExternal] = await Promise.all([
-      this.runReActLoop(internalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:Internal:R1", sessionId }, "INTERNAL"),
-      this.runReActLoop(archivalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:Archival:R1", sessionId }, "ARCHIVAL"),
-      this.runReActLoop(externalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:External:R1", sessionId }, "EXTERNAL"),
+      this.runAgent(internalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:Internal:R1", sessionId }, "INTERNAL"),
+      this.runAgent(archivalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:Archival:R1", sessionId }, "ARCHIVAL"),
+      this.runAgent(externalMsgs, { tools: [executeCodeTool], cacheLabel: "Answerer:External:R1", sessionId }, "EXTERNAL"),
     ]);
 
     // ── STEP 2: Single Meta Reasoning Audit ──────────────────────────────────
@@ -1205,9 +1230,9 @@ YOU ACTION MUST ONLY SATISFY THE PURPOSE OF YOUR DIMENSION, DONT TRY TO DO THING
       `Engage in your extensive <thinking> monologue first, then provide your FINAL CONSOLIDATED INSIGHT.`;
 
     const thinkingMsgs = this.makeCacheableMessages(userText, thinkingAgentSystem, history, thinkingAgentUser);
-    const fullOutput = await this.runReActLoop(
+    const fullOutput = await this.runAgent(
       thinkingMsgs,
-      { tools: [executeCodeTool], thinking: true, cacheLabel: "ThinkingAgentMainThinker", sessionId },
+      { tools: [executeCodeTool], cacheLabel: "ThinkingAgentMainThinker", sessionId },
       "THINKING_AGENT"
     );
 
@@ -1365,7 +1390,6 @@ Treat it as ground truth — do NOT speculate about what code might produce.
     const cRes = await this.completeMessages(controllerMessages, {
       tools: controllerTools,
       toolChoice: { type: "function", function: { name: "set_next_dimension" } },
-      thinking: true,
       cacheLabel: "Controller",
       sessionId,
     });
@@ -1482,7 +1506,6 @@ CRITICAL: Provide the actual SOLUTION, not abstract summaries.`;
     const res = await this.completeMessages(synthMessages, {
       tools: synthTools,
       toolChoice: { type: "function", function: { name: "submit_synthesis" } },
-      thinking: true,
       cacheLabel: "Synthesizer",
       sessionId,
     });
@@ -1680,7 +1703,7 @@ RETURN ONLY A JSON ARRAY OF STRINGS. NO PREAMBLE.`;
     const res = await this.completeMessages(messages, {
       tools,
       toolChoice: { type: "function", function: { name: "set_initial_dimension" } },
-      thinking: true,
+      maxTokens: 256,
       cacheLabel: "InitialDimension",
       sessionId,
     });
@@ -1785,7 +1808,6 @@ CRITICAL INSTRUCTIONS:
     );
 
     const res = await this.completeMessages(groundingMessages, {
-      thinking: true,
       cacheLabel: "Grounding",
       sessionId,
     });

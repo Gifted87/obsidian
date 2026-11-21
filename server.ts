@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { randomUUID } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
@@ -15,7 +15,6 @@ import { ExecutionJob, ExecutionEvent } from './src/executor/dag_types.ts';
 import { FileLockManager } from './src/executor/file_lock_manager.ts';
 import { DagExecutor } from './src/executor/dag_executor.ts';
 
-dotenv.config();
 
 const app = express();
 const port = 3030;
@@ -72,7 +71,8 @@ if (currentProvider === 'deepseek' && !deepseekKeysExist) {
 function getEngine(
   sessionId?: string,
   onRetry?: (msg: string) => void,
-  onEvent?: (type: string, payload: any) => void
+  onEvent?: (type: string, payload: any) => void,
+  toolMode: "react" | "linear" = "react"
 ): IThinkingEngine {
   if (currentProvider === 'gemini') {
     return new ThinkingEngine(apiKey, onRetry, onEvent);
@@ -84,10 +84,11 @@ function getEngine(
     // Update callbacks on the cached instance (they may differ per SSE connection)
     (cached as any).onRetry = onRetry;
     (cached as any).onEvent = onEvent;
+    if (cached instanceof DeepSeekEngine) cached.setToolMode(toolMode);
     return cached;
   }
 
-  const engine = new DeepSeekEngine(undefined, onRetry, onEvent);
+  const engine = new DeepSeekEngine(undefined, onRetry, onEvent, toolMode);
   if (sessionId) {
     sessionEngines.set(sessionId, engine);
   }
@@ -197,7 +198,9 @@ function appendInteractiveResponse(currentInput: string | any[], response: strin
 
 app.post('/api/think', async (req, res) => {
   const { input, files, mode, context, isContinuation } = req.body;
+  const toolMode = req.body.agentToolMode === "linear" ? "linear" : "react";
   const sessionId = (req.body.sessionId && String(req.body.sessionId).trim()) || randomUUID();
+  console.log(`[Session ${sessionId}] Think request received (provider=${currentProvider}, toolMode=${toolMode}, continuation=${Boolean(isContinuation)}).`);
 
   // (Mid-session instructions are handled dynamically in the reasoning loop)
 
@@ -214,7 +217,8 @@ app.post('/api/think', async (req, res) => {
   const engine = getEngine(
     sessionId,
     (msg) => send('retry', msg),
-    (type, payload) => send(type, payload)
+    (type, payload) => send(type, payload),
+    toolMode
   );
 
   try {
@@ -294,7 +298,11 @@ app.post('/api/think', async (req, res) => {
       }
 
       // Get the initial dimension from the controller (with guidance to choose Understanding or Interactive)
+      send('status', 'Controller selecting the initial dimension...');
+      const initialDimensionStartedAt = Date.now();
+      console.log(`[Session ${sessionId}] Initial dimension selection started.`);
       const initialDimDecision = await engine.getInitialDimension(currentInput, mode, sessionId);
+      console.log(`[Session ${sessionId}] Initial dimension selected: ${initialDimDecision.dimension} (${Date.now() - initialDimensionStartedAt}ms).`);
       nextDim = initialDimDecision.dimension;
       send('initial_dimension', {
         dimension: nextDim,
